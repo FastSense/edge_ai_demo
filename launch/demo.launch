@@ -1,0 +1,4 @@
+<launch>
+    <node name="segmentation_node" pkg="edge_ai_demo" type="segmentation_node.py" />
+    <node name="detection_node" pkg="edge_ai_demo" type="detection_node.py" />
+</launch>

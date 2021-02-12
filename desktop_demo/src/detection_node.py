@@ -96,9 +96,7 @@ class ObjectDetector:
 
     def inference(self, event=None):
         if self._input_image_raw is not None:
-            print(self._input_image)
             self._input_image = self.reshape()
-            print(self._input_image)
 
             img = self.models[Model.DETECTION][Operation.PREPROCESS](self._input_image)
             self._boxes = self.models[Model.DETECTION][Operation.INFERENCE](img)
@@ -133,15 +131,23 @@ class ObjectDetector:
 
     def _create_models(self):
         models = {}
-        preprocess = self._create_preprocessings()
         detection_model = self._create_detection_model()
         reid_model = self._create_reidentification_model()
 
+        reid_preproc = nnio.Preprocessing(resize=(128, 256),
+                                          dtype='float32',
+                                          divide_by_255=True,
+                                          means=[0.485, 0.456, 0.406],
+                                          scales=1/np.array([0.229, 0.224, 0.225]),
+                                          channels_first=True,
+                                          batch_dimension=True,
+                                          padding=True)
+
         models[Model.DETECTION] = {Operation.INFERENCE: detection_model,
-                                   Operation.PREPROCESS: preprocess[Model.DETECTION]}
+                                   Operation.PREPROCESS: detection_model.get_preprocessing()}
 
         models[Model.REIDENTIFICATION] = {Operation.INFERENCE: reid_model,
-                                          Operation.PREPROCESS: preprocess[Model.REIDENTIFICATION]}
+                                          Operation.PREPROCESS: reid_preproc}
 
         return models
 
@@ -168,24 +174,6 @@ class ObjectDetector:
             model = nnio.ONNXModel(self._reid_model_path)
 
         return model
-
-    def _create_preprocessings(self):
-        detection_preprocess = nnio.Preprocessing(
-            resize=(128, 256),
-            dtype='float32',
-            divide_by_255=True,
-            means=[0.485, 0.456, 0.406],
-            scales=1/np.array([0.229, 0.224, 0.225]),
-            channels_first=True,
-            batch_dimension=True,
-            padding=True)
-
-        reidentification_preprocess = None
-
-        return {
-            Model.DETECTION: detection_preprocess,
-            Model.REIDENTIFICATION: reidentification_preprocess
-        }
 
     def _accept_params(self):
 

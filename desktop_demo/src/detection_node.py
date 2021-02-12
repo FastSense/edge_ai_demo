@@ -69,7 +69,7 @@ class ObjectDetector:
                       'x2': float(box.x_2), 'y2': float(box.y_2)}}
         return d
 
-    def find_closest(self, vec, treshold=0.7):
+    def find_closest(self, vec, threshold=0.7):
         keys = list(self._database.keys())
         vec = vec / np.sqrt((vec**2).mean())
         distances = [
@@ -80,7 +80,7 @@ class ObjectDetector:
             id_min = None
         else:
             id_min = np.argmin(distances)
-        if id_min is None or distances[id_min] > treshold:
+        if id_min is None or distances[id_min] > threshold:
             new_key = str(len(self._database))
             rospy.loginfo('adding %s', new_key)
             if id_min is not None:
@@ -93,14 +93,15 @@ class ObjectDetector:
         return np.frombuffer(self._input_image_raw.data, dtype='uint8').reshape((self._input_image_raw.height,
                                                                                  self._input_image_raw.width, 3))
 
+
     def inference(self, event=None):
         if self._input_image_raw is not None:
+            print(self._input_image)
             self._input_image = self.reshape()
+            print(self._input_image)
 
-            img = self.models[Model.DETECTION][Operation.PREPROCESS](
-                self._input_image)
-            self._boxes = self.models[Model.DETECTION][Operation.INFERENCE](
-                img)
+            img = self.models[Model.DETECTION][Operation.PREPROCESS](self._input_image)
+            self._boxes = self.models[Model.DETECTION][Operation.INFERENCE](img)
 
             output_image = np.copy(self._input_image)
             for box in self._boxes:
@@ -116,7 +117,7 @@ class ObjectDetector:
                     vec = self.models[Model.REIDENTIFICATION][Operation.INFERENCE](crop_prepared)[
                         0][0]
 
-                    key = self.find_closest(vec)
+                    key = self.find_closest(vec, self._treshold)
                     box.label = 'person ' + key
 
                 box.draw(output_image)
@@ -133,11 +134,13 @@ class ObjectDetector:
     def _create_models(self):
         models = {}
         preprocess = self._create_preprocessings()
+        detection_model = self._create_detection_model()
+        reid_model = self._create_reidentification_model()
 
-        models[Model.DETECTION] = {Operation.INFERENCE: self._create_detection_model(),
+        models[Model.DETECTION] = {Operation.INFERENCE: detection_model,
                                    Operation.PREPROCESS: preprocess[Model.DETECTION]}
 
-        models[Model.REIDENTIFICATION] = {Operation.INFERENCE: self._create_reidentification_model(),
+        models[Model.REIDENTIFICATION] = {Operation.INFERENCE: reid_model,
                                           Operation.PREPROCESS: preprocess[Model.REIDENTIFICATION]}
 
         return models
@@ -217,6 +220,8 @@ class ObjectDetector:
 
         self._reid_bin_path = rospy.get_param(
             '/%s/reid_bin_path' % self._name, '')  # TODO defailt bin path
+
+        self._treshold = rospy.get_param('/%s/treshold' % self._name, 0.7)
 
 
 if __name__ == '__main__':

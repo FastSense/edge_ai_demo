@@ -1,40 +1,41 @@
 #!/usr/bin/env python3
+
 from enum import Enum
 
-import json
 import rospy
+
 import numpy as np
 import nnio
-import pyrealsense2 as rs2
 
-from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import TransformStamped
-from std_msgs.msg import String
-from tf2_msgs.msg import TFMessage
+from sensor_msgs.msg import Image
 
 
 class Model(Enum):
     DETECTION = 1
-    REINDEFICATION = 2
+    REIDENTIFICATION = 2
 
 
-EDGE_TPU_TYPES = [
+class Operation(Enum):
+    CREATE = 1
+    PREPROCESS = 2
+    INFERENCE = 3
+
+
+EDGE_TPU_NAMES = [
     'EDGE', 'EDGETPU', 'EDGE_TPU'
 ]
 
-OPEN_VINO_TYPES = [
+OPENVINO_NAMES = [
     'OPEN_VINO', 'OPENVINO', 'MYRIAD'
 ]
 
 
 class ObjectDetector:
 
-    def __init__(self, name='object_detector'):
-        self._name = name
+    def __init__(self):
         self._accept_params()
 
-        rospy.init_node(name)
-
+        rospy.init_node(self._name)
         self.models = self._create_models()
 
         self._input_image = None
@@ -49,27 +50,13 @@ class ObjectDetector:
         self._input_image_sub = rospy.Subscriber(self._camera_image_topic,
                                                  Image, self._input_image_cb)
         self._image_pub = rospy.Publisher(
-            '/image_overlay', Image, queue_size=1)
-
-        self._vis_pub = rospy.Publisher('/detections', String, queue_size=1)
+            self._image_overlay, Image, queue_size=1)
 
         self._timer = rospy.Timer(rospy.Duration(1.0 / self._max_inference_rate),
                                   self.inference)
 
     def _input_image_cb(self, msg):
         self._input_image_raw = msg
-
-    def _reid_preproc(self, img):
-        return nnio.Preprocessing(
-            resize=(128, 256),
-            dtype='float32',
-            divide_by_255=True,
-            means=[0.485, 0.456, 0.406],
-            scales=1/np.array([0.229, 0.224, 0.225]),
-            channels_first=True,
-            batch_dimension=True,
-            padding=True
-        )(img)
 
     def _get_models(self):
         return None
@@ -95,9 +82,9 @@ class ObjectDetector:
             id_min = np.argmin(distances)
         if id_min is None or distances[id_min] > treshold:
             new_key = str(len(self._database))
-            print('adding', new_key)
+            rospy.loginfo('adding %s', new_key)
             if id_min is not None:
-                print(distances[id_min])
+                rospy.loginfo('min distance: %s', distances[id_min])
             self._database[new_key] = vec
             return new_key
         return keys[id_min]
@@ -107,13 +94,13 @@ class ObjectDetector:
                                                                                  self._input_image_raw.width, 3))
 
     def inference(self, event=None):
-        det = {}
-
         if self._input_image_raw is not None:
             self._input_image = self.reshape()
-            img = self.models[Model.DETECTION].get_preprocessing()(
+
+            img = self.models[Model.DETECTION][Operation.PREPROCESS](
                 self._input_image)
-            self._boxes = self.models[Model.DETECTION](img)
+            self._boxes = self.models[Model.DETECTION][Operation.INFERENCE](
+                img)
 
             output_image = np.copy(self._input_image)
             for box in self._boxes:
@@ -123,16 +110,16 @@ class ObjectDetector:
                         int(h * box.x_1): int(h * box.x_2),
                         int(w * box.y_1): int(w * box.y_2)
                     ]
-                    crop_prepared = self._reid_preproc(crop)
-                    vec = self.models[Model.REINDEFICATION](crop_prepared)[
+
+                    crop_prepared = self.models[Model.REIDENTIFICATION][Operation.PREPROCESS](
+                        crop)
+                    vec = self.models[Model.REIDENTIFICATION][Operation.INFERENCE](crop_prepared)[
                         0][0]
 
                     key = self.find_closest(vec)
                     box.label = 'person ' + key
 
                 box.draw(output_image)
-
-            self._vis_pub.publish(String(data=json.dumps(det)))
 
             if self._input_image_raw is not None:
                 output = Image()
@@ -143,48 +130,96 @@ class ObjectDetector:
                 output.step = len(output.data) // output.height
                 self._image_pub.publish(output)
 
-    def _create_detection_model(self):
-        if self._inference_framework in EDGE_TPU_TYPES:
-            model = nnio.zoo.edgetpu.detection.SSDMobileNet(
-                device=self._inference_device)
-        if self._inference_framework in OPEN_VINO_TYPES:
-            model = nnio.zoo.openvino.detection.SSDMobileNetV2(
-                device=self._inference_device)
-        else:
-            model = nnio.zoo.onnx.detection.SSDMobileNetV1()
-        return model
-
-    def _create_reindefication_model(self):
-        model = nnio.ONNXModel(self._reindefication_nn_path)
-        return model
-
     def _create_models(self):
         models = {}
-        models[Model.DETECTION] = self._create_detection_model()
-        models[Model.REINDEFICATION] = self._create_reindefication_model()
+        preprocess = self._create_preprocessings()
+
+        models[Model.DETECTION] = {Operation.INFERENCE: self._create_detection_model(),
+                                   Operation.PREPROCESS: preprocess[Model.DETECTION]}
+
+        models[Model.REIDENTIFICATION] = {Operation.INFERENCE: self._create_reidentification_model(),
+                                          Operation.PREPROCESS: preprocess[Model.REIDENTIFICATION]}
+
         return models
 
+    def _create_detection_model(self):
+        if self._detection_inference_framework in EDGE_TPU_NAMES:
+            model = nnio.zoo.edgetpu.detection.SSDMobileNet(
+                device=self._detection_inference_device)
+        if self._detection_inference_framework in OPENVINO_NAMES:
+            model = nnio.zoo.openvino.detection.SSDMobileNetV2(
+                device=self._detection_inference_device)
+        else:
+            model = nnio.zoo.onnx.detection.SSDMobileNetV1()
+
+        return model
+
+    def _create_reidentification_model(self):
+        if self._reid_inference_framework in EDGE_TPU_NAMES:
+            model = nnio.EdgeTPUModel(
+                device=self._reid_inference_device, model_path=self._reid_model_path)
+        if self._reid_inference_framework in OPENVINO_NAMES:
+            model = nnio.OpenVINOModel(
+                device=self._reid_inference_device, model_xml=self._reid_model_path, model_bin=self._reid_bin_path)
+        else:
+            model = nnio.ONNXModel(self._reid_model_path)
+
+        return model
+
+    def _create_preprocessings(self):
+        detection_preprocess = nnio.Preprocessing(
+            resize=(128, 256),
+            dtype='float32',
+            divide_by_255=True,
+            means=[0.485, 0.456, 0.406],
+            scales=1/np.array([0.229, 0.224, 0.225]),
+            channels_first=True,
+            batch_dimension=True,
+            padding=True)
+
+        reidentification_preprocess = None
+
+        return {
+            Model.DETECTION: detection_preprocess,
+            Model.REIDENTIFICATION: reidentification_preprocess
+        }
+
     def _accept_params(self):
+
+        self._name = rospy.get_param('node_name', 'object_detector')
+
         self._camera_image_topic = rospy.get_param('/%s/camera_image_topic' % self._name,
                                                    '/camera/color/image_raw')
 
-        self._inference_framework = rospy.get_param('/%s/inference_framework' % self._name,
-                                                    'ONNX').upper()
+        self._image_overlay = rospy.get_param('/%s/image_overlay' % self._name,
+                                              'image_overlay')
 
-        self._inference_device = rospy.get_param('/%s/inference_device' % self._name,
-                                                 'CPU').upper()
+        self._detection_inference_framework = rospy.get_param('/%s/detection_inference_framework' % self._name,
+                                                              'ONNX').upper()
 
-        self._camera_frame = rospy.get_param('/%s/camera_frame' % self._name,
-                                             'camera_link')
+        self._detection_inference_device = rospy.get_param('/%s/detection_inference_device' % self._name,
+                                                           'CPU').upper()
+
+        self._reid_inference_framework = rospy.get_param('/%s/reid_inference_framework' % self._name,
+                                                         'ONNX').upper()
+
+        self._reid_inference_device = rospy.get_param('/%s/reid_inference_device' % self._name,
+                                                      'CPU').upper()
+
+        self._camera_frame = rospy.get_param(
+            '/%s/camera_frame' % self._name, 'camera_link')
 
         self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name,
                                                    20)
 
-        self._reindefication_nn_path = rospy.get_param('/%s/reindefication_nn_path' % self._name,
-                                                       'http://192.168.123.4:8345/onnx/reid/osnet_x1_0_op10.onnx')
+        self._reid_model_path = rospy.get_param('/%s/reid_model_path' % self._name,
+                                                'http://192.168.123.4:8345/onnx/reid/osnet_x1_0_op10.onnx')
+
+        self._reid_bin_path = rospy.get_param(
+            '/%s/reid_bin_path' % self._name, '')  # TODO defailt bin path
 
 
 if __name__ == '__main__':
-    detecor = ObjectDetector('object_detector')
+    detecor = ObjectDetector()
 
     rospy.spin()

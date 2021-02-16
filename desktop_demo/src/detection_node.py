@@ -247,10 +247,7 @@ class ObjectDetector:
         self._out_img_topics = rospy.get_param(
             '/%s/out_img_topics' % self._name, '')
 
-        rospy.logwarn("multi topics : %s, %s",
-                      self._in_img_topics, self._out_img_topics)
-
-        self._detection_inference_framework = rospy.get_param(
+                self._detection_inference_framework = rospy.get_param(
             '/%s/detection_inference_framework' % self._name, 'ONNX').upper()
         self._detection_inference_device = rospy.get_param(
             '/%s/detection_inference_device' % self._name, 'CPU').upper()

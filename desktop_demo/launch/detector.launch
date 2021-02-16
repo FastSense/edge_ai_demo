@@ -1,30 +1,32 @@
 <launch>
-    <arg name="node_name"                      default="object_detector"/>
+    <arg name="node_name_arg"                  default="object_detector"/>
     <arg name="image_overlay"                  default="image_overlay"/> 
-    <arg name="detection_inference_framework"  default="ONNX"/>
-    <arg name="detection_inference_device"     default="CPU"/>
 
-    <arg name="reid_inference_framework"       default="ONNX"/>
-    <arg name="reid_inference_device"          default="CPU"/>
+    <arg name="detection_inference_framework"  default="EDGETPU"/>
+    <arg name="detection_inference_device"     default="TPU:0"/>
 
-    <arg name="reid_model_path"                default="http://192.168.123.4:8345/onnx/reid/osnet_x1_0_op10.onnx"/>
-    <arg name="reid_bin_path"                  default=""/>
-    <arg name="max_inference_rate'"            default="20"/>
+    <arg name="reid_inference_framework"       default="OPENVINO"/>
+    <arg name="reid_inference_device"          default="MYRIAD"/>
+
+    <arg name="reid_model_path"                default="http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml"/>
+    <arg name="reid_bin_path"                  default="http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin"/>
+
+    <arg name="max_inference_rate"             default="20"/>
     <arg name="threshold"                      default="0.7"/>
 
-    <node name="$(arg object_detector)" pkg="edge_ai_demo" type="detection_node.py" >
-      <arg name="node_name"                      value="$(arg object_detector)"/>
-      <arg name="image_overlay"                  value="$(arg image_overlay)"/> 
+    <node name="object_detector" pkg="desktop_demo" type="detection_node.py" >
+      <param name="node_name"                      value="$(arg node_name_arg)"/>
+      <param name="image_overlay"                  value="$(arg image_overlay)"/> 
 
-      <arg name="detection_inference_framework"  value="$(arg detection_inference_framework)"/>
-      <arg name="detection_inference_device"     value="$(arg detection_inference_device)"/>
+      <param name="detection_inference_framework"  value="$(arg detection_inference_framework)"/>
+      <param name="detection_inference_device"     value="$(arg detection_inference_device)"/>
 
-      <arg name="reid_inference_framework"       value="$(arg reid_inference_framework)"/>
-      <arg name="reid_inference_device"          value="$(arg reid_inference_device)"/>
+      <param name="reid_inference_framework"       value="$(arg reid_inference_framework)"/>
+      <param name="reid_inference_device"          value="$(arg reid_inference_device)"/>
+      <param name="reid_model_path"                value="$(arg reid_model_path)"/>
+      <param name="reid_bin_path"                  value="$(arg reid_bin_path)"/>
 
-      <arg name="reid_model_path"                value="$(arg reid_model_path")/>
-      <arg name="reid_bin_path"                  value=""/>
-      <arg name="max_inference_rate'"            value="$(arg max_inference_rate)"/>
-      <arg name="threshold"                      value="$(arg threshold)"/>
+      <param name="max_inference_rate'"            value="$(arg max_inference_rate)"/>
+      <param name="threshold"                      value="$(arg threshold)"/>
     </node>
 </launch>

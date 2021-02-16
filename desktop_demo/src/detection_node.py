@@ -101,7 +101,7 @@ class ObjectDetector:
         id = 1
         for source in self._sources:
             self._threads.append(Thread(target=self._inference_source, args=(
-                source, "TOPIC_NAME", self._inference_timeout_val)))
+                source, self._inference_timeout_val)))
             self._threads[-1].start()
             id += 1
 
@@ -181,7 +181,7 @@ class ObjectDetector:
         output = Image()
         output.width = source._in_img_raw.width
         output.height = source._in_img_raw.height
-        output.data = tuple(output_image.reshape(1, -1)[0])
+        output.data = output_image.tobytes()
         output.encoding = 'rgb8'
         output.step = len(output.data) // output.height
 
@@ -218,7 +218,7 @@ class ObjectDetector:
         if self._detection_inference_framework in EDGE_TPU_NAMES:
             model = nnio.zoo.edgetpu.detection.SSDMobileNet(
                 device=self._detection_inference_device)
-        if self._detection_inference_framework in OPENVINO_NAMES:
+        elif self._detection_inference_framework in OPENVINO_NAMES:
             model = nnio.zoo.openvino.detection.SSDMobileNetV2(
                 device=self._detection_inference_device)
         else:
@@ -230,7 +230,7 @@ class ObjectDetector:
         if self._reid_inference_framework in EDGE_TPU_NAMES:
             model = nnio.EdgeTPUModel(
                 device=self._reid_inference_device, model_path=self._reid_model_path)
-        if self._reid_inference_framework in OPENVINO_NAMES:
+        elif self._reid_inference_framework in OPENVINO_NAMES:
             model = nnio.OpenVINOModel(
                 device=self._reid_inference_device, model_xml=self._reid_model_path, model_bin=self._reid_bin_path)
         else:
@@ -244,29 +244,16 @@ class ObjectDetector:
 
         self._image_overlay = rospy.get_param('/%s/image_overlay' % self._name,
                                               'image_overlay')
+        self._detection_inference_framework = rospy.get_param('/%s/detection_inference_framework' % self._name, 'ONNX').upper()
+        self._detection_inference_device = rospy.get_param('/%s/detection_inference_device' % self._name, 'CPU').upper()
 
-        self._detection_inference_framework = rospy.get_param('/%s/detection_inference_framework' % self._name,
-                                                              'ONNX').upper()
-
-        self._detection_inference_device = rospy.get_param('/%s/detection_inference_device' % self._name,
-                                                           'CPU').upper()
-
-        self._reid_inference_framework = rospy.get_param('/%s/reid_inference_framework' % self._name,
-                                                         'ONNX').upper()
-
-        self._reid_inference_device = rospy.get_param('/%s/reid_inference_device' % self._name,
-                                                      'CPU').upper()
-
-        self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name,
-                                                   20)
-
-        self._reid_model_path = rospy.get_param('/%s/reid_model_path' % self._name,
-                                                'http://192.168.123.4:8345/onnx/reid/osnet_x1_0_op10.onnx')
-
-        self._reid_bin_path = rospy.get_param(
-            '/%s/reid_bin_path' % self._name, '')  # TODO defailt bin path
+        self._reid_inference_framework = rospy.get_param('/%s/reid_inference_framework' % self._name, 'ONNX').upper()
+        self._reid_inference_device = rospy.get_param('/%s/reid_inference_device' % self._name, 'CPU').upper()
+        self._reid_model_path = rospy.get_param('/%s/reid_model_path' % self._name, '')
+        self._reid_bin_path = rospy.get_param('/%s/reid_bin_path' % self._name, '')  
 
         self._threshold = rospy.get_param('/%s/threshold' % self._name, 0.7)
+        self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name, 20)
 
 
 if __name__ == '__main__':

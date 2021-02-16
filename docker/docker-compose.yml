@@ -32,8 +32,8 @@ services:
                 - INTEL_OCLOC=19.41.14441
                 - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
         environment:
-            - ROS_HOSTNAME=192.168.123.240
-            - ROS_MASTER_URI=http://192.168.123.240:11311
+            - ROS_HOSTNAME=192.168.123.148
+            - ROS_MASTER_URI=http://192.168.123.148:11311
             - BLACKLIST=ydlidar_ros
                         multirobot_map_merge
                         astra_camera
@@ -52,11 +52,9 @@ services:
             - ./scripts/entrypoint.sh
         volumes:
             - /dev/:/dev/
-            - ~/robot_configs/:/home/user/robot_configs/
             - ../:/home/user/catkin_ws/src
             - ./wheels_rs_ov/entrypoint.sh:/home/user/scripts/entrypoint.sh
             - ./wheels_rs_ov/aliases.sh:/home/user/scripts/aliases.sh
-            - /home/alamoris/data/work/fastsense/repos/nnio/tests:/home/user/input/
         privileged: true
         network_mode: "host"
 

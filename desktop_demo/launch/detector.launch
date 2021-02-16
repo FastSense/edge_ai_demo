@@ -19,7 +19,7 @@
 
     <node name="object_detector" pkg="desktop_demo" type="detection_node.py" >
       <rosparam param="in_img_topics"  subst_value="True">$(arg in_img_topics)</rosparam>
-      <rosparam param="out_img_topics" subst_value="True">$(arg out_img_topic)</rosparam>
+      <rosparam param="out_img_topics" subst_value="True">$(arg out_img_topics)</rosparam>
 
       <param name="node_name"                      value="$(arg node_name_arg)"/>
       <param name="image_overlay"                  value="$(arg image_overlay)"/> 

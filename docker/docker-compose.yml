@@ -1,0 +1,64 @@
+version: "3"
+
+services:
+    base:
+        build:
+            context: ./wheels
+            dockerfile: Dockerfile
+        stdin_open: true
+        tty: true
+
+
+    rs:
+        build:
+            context: ./wheels_rs
+            dockerfile: Dockerfile
+            args:
+                - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+        stdin_open: true
+        tty: true
+
+
+    rs_ov:
+        build:
+            context: ./wheels_rs_ov
+            dockerfile: Dockerfile
+            args:
+                - package_url=https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.1/l_openvino_toolkit_dev_ubuntu18_p_2021.1.110.tgz
+                - GMMLIB=19.3.2
+                - IGC_CORE=1.0.2597
+                - IGC_OPENCL=1.0.2597
+                - INTEL_OPENCL=19.41.14441
+                - INTEL_OCLOC=19.41.14441
+                - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+        environment:
+            - ROS_HOSTNAME=192.168.123.240
+            - ROS_MASTER_URI=http://192.168.123.240:11311
+            - BLACKLIST=ydlidar_ros
+                        multirobot_map_merge
+                        astra_camera
+                        gazebo_common
+        stdin_open: true
+        tty: true
+
+
+    rs_ov_tf:
+        build:
+            context: ./wheels_rs_ov_tf
+            dockerfile: Dockerfile
+            args:
+                - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+        entrypoint:
+            - ./scripts/entrypoint.sh
+        volumes:
+            - /dev/:/dev/
+            - ~/robot_configs/:/home/user/robot_configs/
+            - ../:/home/user/catkin_ws/src
+            - ./wheels_rs_ov/entrypoint.sh:/home/user/scripts/entrypoint.sh
+            - ./wheels_rs_ov/aliases.sh:/home/user/scripts/aliases.sh
+            - /home/alamoris/data/work/fastsense/repos/nnio/tests:/home/user/input/
+        privileged: true
+        network_mode: "host"
+
+        stdin_open: true
+        tty: true

@@ -38,10 +38,11 @@ class ImageSource:
         storing as well reshaped image, and currently detected boxes, can also reindeficate box with
         given neural network model and image sequence """
 
-    def __init__(self, node_name, image_topic_name):
+    def __init__(self, node_name, in_img_topic, out_img_topic):
         self.mutex = Lock()
 
-        self._img_topic_name = image_topic_name
+        self._image_pub = rospy.Publisher(out_img_topic, Image, queue_size=1)
+        self._img_topic_name = in_img_topic
         self._node_name = node_name
         self._in_img_raw = None
         self._in_img_np_array = np.array([])
@@ -91,8 +92,6 @@ class ObjectDetector:
         self._fill_models()
         self._fill_sources()
 
-        self._image_pubs = []
-
         self._inference_timeout_val = 1.0 / self._max_inference_rate
         self._inference_timeout = rospy.Duration(self._inference_timeout_val)
 
@@ -101,8 +100,8 @@ class ObjectDetector:
 
         id = 1
         for source in self._sources:
-            self._image_pubs.append(rospy.Publisher(self._image_overlay + str(id), Image, queue_size=1))
-            self._threads.append(Thread(target=self._inference_source, args=(source, self._image_pubs[-1], self._inference_timeout_val)))
+            self._threads.append(Thread(target=self._inference_source, args=(
+                source, "TOPIC_NAME", self._inference_timeout_val)))
             self._threads[-1].start()
             id += 1
 
@@ -111,11 +110,6 @@ class ObjectDetector:
 
     def input_image_cb(self, msg):
         self._input_image_raw = msg
-
-    def _create_detection(self, box):
-        d = {'bbox': {'x1': float(box.x_1), 'y1': float(box.y_1),
-                      'x2': float(box.x_2), 'y2': float(box.y_2)}}
-        return d
 
     def find_closest(self, vec, threshold=0.7):
         keys = list(self._database.keys())
@@ -153,7 +147,7 @@ class ObjectDetector:
 
             source.mutex.release()
 
-    def _inference_source(self, source, publisher, timeout):
+    def _inference_source(self, source, timeout):
         while not rospy.is_shutdown():
             if source._in_img_raw is not None and source._in_img_np_array is not None and source._boxes is not None:
                 source.mutex.acquire()
@@ -178,12 +172,12 @@ class ObjectDetector:
                 for box in source._boxes:
                     box.draw(output_image)
 
-                self._publish_output(source, output_image, publisher)
+                self._publish_output(source, output_image)
 
                 source.mutex.release()
             time.sleep(timeout)
 
-    def _publish_output(self, source, output_image, publisher):
+    def _publish_output(self, source, output_image):
         output = Image()
         output.width = source._in_img_raw.width
         output.height = source._in_img_raw.height
@@ -191,14 +185,14 @@ class ObjectDetector:
         output.encoding = 'rgb8'
         output.step = len(output.data) // output.height
 
-        publisher.publish(output)
+        source._image_pub.publish(output)
 
     def _fill_sources(self):
         self._sources.append(ImageSource(
-            self._name, "/camera1/color/image_raw"))
+            self._name, "/camera1/color/image_raw", "image_overlay_1"))
 
         self._sources.append(ImageSource(
-            self._name, "/camera2/color/image_raw"))
+            self._name, "/camera2/color/image_raw", "image_overlay_2"))
 
     def _fill_models(self):
         detection_model = self._create_detection_model()

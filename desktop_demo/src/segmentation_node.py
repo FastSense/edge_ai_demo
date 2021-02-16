@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import cv2
 import nnio
+import time
 
 from sensor_msgs.msg import Image
 
@@ -22,13 +23,7 @@ class SegmentationNode:
 
         self._init_pub_sub()
 
-        self._model = nnio.zoo.edgetpu.segmentation.DeepLabV3()
-
-        self._palette = {0: (17, 17, 17),       # background
-                         5: (46, 204, 113),     # bottle
-                         9: (52, 152, 219),     # chair
-                         15: (231, 76, 60),     # person
-                         20: (245, 176, 65)}    # tvmonitor
+        self._model = nnio.zoo.edgetpu.segmentation.DeepLabV3(device=self._inference_device)
 
         self._timer = rospy.Timer(rospy.Duration(1.0 / self._max_inference_rate),
                                   self.inference)
@@ -40,8 +35,8 @@ class SegmentationNode:
                                                   '/segmentation')
         self._inference_framework = rospy.get_param('/%s/inference_framework' % self._name,
                                                     'EDGETPU')
-        self._inference_device = rospy.get_param('/%s/inference_device' % self._name, 'CPU')
-        self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name, 2)
+        self._inference_device = rospy.get_param('/%s/inference_device' % self._name, 'TPU')
+        self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name, 10)
 
     def _init_pub_sub(self):
         self._image_pub = rospy.Publisher(self._output_topic_name, Image, queue_size=1)
@@ -52,26 +47,28 @@ class SegmentationNode:
     def _input_image_cb(self, msg):
         self._input_image_raw = msg
 
-    def _postprocess(self, result):
-        result = self._model(self._model.get_preprocessing()(self._input_image))
+    def _postprocess(self, result, last_time=[0]):
+        im = cv2.cvtColor((20 - result.astype('uint8')) * (255 // 20), cv2.COLOR_GRAY2BGR)
+        imc = cv2.applyColorMap(im, cv2.COLORMAP_JET)
 
-        segmented_image = np.ndarray((513, 513, 3), dtype='uint8')
 
-        labels = set()
-
-        for y in range(len(result)):
-            for x in range(len(result[0])):
-                labels.add(self._model.labels[result[y, x]])
-                if result[y, x] in self._palette:
-                    segmented_image[y, x] = self._palette[result[y, x]]
-
-        rospy.loginfo('"%s": %r' % (self._name, labels))
 
         output_image = cv2.resize(cv2.addWeighted(cv2.resize(
                                   self._input_image, (513, 513))[:, :, ::-1],
-                                  0.5, segmented_image, 0.5, 0),
+                                  0.5, imc, 0.5, 0),
                                   (self._input_image_raw.width,
                                    self._input_image_raw.height))
+
+        output_image = cv2.putText(
+                            output_image,
+                            'FPS: %.3f' % (1.0 / (time.time() - last_time[0])) ,
+                            (0, 13),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (255, 255, 255), 1, cv2.LINE_AA,
+                        )
+
+        last_time[0] = time.time()
+
         return output_image
 
     def _msg_to_nparray(self, msg):
@@ -81,7 +78,7 @@ class SegmentationNode:
         return img
 
     def _publish_img(self, img, width, height, encoding='rgb8'):
-        data = tuple(img.reshape(1, -1)[0])
+        data = img.tobytes()
 
         output = Image(width=width, height=height, data=data,
                        encoding=encoding, step=len(data) // height)
@@ -103,7 +100,7 @@ class SegmentationNode:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Node for the neural network segmentation')
-    parser.add_argument('--name', type=str, help='name of the node', default='segmentation_node')
+    parser.add_argument('--name', type=str, help='name of the node', default='segmentation_node1')
     args = parser.parse_args()
     node = SegmentationNode(args.name)
     rospy.spin()

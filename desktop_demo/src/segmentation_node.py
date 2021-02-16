@@ -61,11 +61,11 @@ class SegmentationNode:
 
         for y in range(len(result)):
             for x in range(len(result[0])):
-                labels.add('%s-%d' % (self._model.labels[result[y, x]], result[y, x]))
+                labels.add(self._model.labels[result[y, x]])
                 if result[y, x] in self._palette:
                     segmented_image[y, x] = self._palette[result[y, x]]
 
-        rospy.loginfo(labels)
+        rospy.loginfo('"%s": %r' % (self._name, labels))
 
         output_image = cv2.resize(cv2.addWeighted(cv2.resize(
                                   self._input_image, (513, 513))[:, :, ::-1],
@@ -74,29 +74,36 @@ class SegmentationNode:
                                    self._input_image_raw.height))
         return output_image
 
+    def _msg_to_nparray(self, msg):
+        img = np.frombuffer(msg.data, dtype='uint8')
+        img = img.reshape((self._input_image_raw.height,
+                           self._input_image_raw.width, 3))
+        return img
+
+    def _publish_img(self, img, width, height, encoding='rgb8'):
+        data = tuple(img.reshape(1, -1)[0])
+
+        output = Image(width=width, height=height, data=data,
+                       encoding=encoding, step=len(data) // height)
+
+        self._image_pub.publish(output)
+
     def inference(self, event=None):
          if self._input_image_raw is not None:
-            self._input_image = np.frombuffer(self._input_image_raw.data, dtype='uint8')
-            self._input_image = self._input_image.reshape((self._input_image_raw.height,
-                                                           self._input_image_raw.width, 3))
+            self._input_image = self._msg_to_nparray(self._input_image_raw)
 
             result = self._model(self._model.get_preprocessing()(self._input_image))
 
             output_image = self._postprocess(result)
 
-            output = Image()
-            output.width = self._input_image_raw.width
-            output.height = self._input_image_raw.height
-            output.data = tuple(output_image.reshape(1, -1)[0])
-            output.encoding = 'rgb8'
-            output.step = len(output.data) // output.height
-            self._image_pub.publish(output)
+            self._publish_img(output_image,
+                              self._input_image_raw.width,
+                              self._input_image_raw.height)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--name', type=str, help='name of the node',
-                        default='segmentation_node')
+    parser = argparse.ArgumentParser(description='Node for the neural network segmentation')
+    parser.add_argument('--name', type=str, help='name of the node', default='segmentation_node')
     args = parser.parse_args()
     node = SegmentationNode(args.name)
     rospy.spin()

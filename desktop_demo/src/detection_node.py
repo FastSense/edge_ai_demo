@@ -30,7 +30,9 @@ class ModelAdapter():
         self.model = model
 
     def inference(self, img):
-        return self.model(img)
+        result, info = self.model(img, return_info=True) 
+        print(info)
+        return result
 
 
 class ImageSource:
@@ -65,8 +67,8 @@ class ImageSource:
     def _get_cropped(self, image, box):
         h, w, _ = image.shape
         return image[
-            int(h * box.x_1): int(h * box.x_2),
-            int(w * box.y_1): int(w * box.y_2)
+            int(h * max(0, box.x_1)): int(h * min(1, box.x_2)),
+            int(w * max(0, box.y_1)): int(w * min(1, box.y_2))
         ]
 
     def _raw_to_np_array(self):
@@ -149,6 +151,7 @@ class ObjectDetector:
 
             source._in_img_np_array = source._raw_to_np_array()
             img = self._models['DETECTION'].preprocess(source._in_img_np_array)
+            print('DETECTION:')
             source._boxes = self._models['DETECTION'].inference(img)
 
             source.mutex.release()
@@ -161,11 +164,18 @@ class ObjectDetector:
                 output_image = np.copy(source._in_img_np_array)
 
                 for box in source._boxes:
-                    if box.label == 'person':
+                    if False and box.label == 'person':
                         img_cropped = source._get_cropped(output_image, box)
+
+                        print('x_1=%.3f x_2=%.3f y1=%.3f y2=%.3f' % (box.x_1, box.x_2, box.y_1, box.y_2))
+
+                        if img_cropped.size == 0:
+                            print('empty')
+                            continue
 
                         img_prepared = self._models['REID'].preprocess(
                             img_cropped)
+                        print('REID:')
                         vec = self._models['REID'].inference(img_prepared)[
                             0][0]
 
@@ -197,8 +207,8 @@ class ObjectDetector:
         self._sources.append(ImageSource(
             self._name, "/camera1/color/image_raw"))
 
-        self._sources.append(ImageSource(
-            self._name, "/camera2/color/image_raw"))
+        #self._sources.append(ImageSource(
+        #    self._name, "/camera2/color/image_raw"))
 
     def _fill_models(self):
         detection_model = self._create_detection_model()
@@ -221,13 +231,17 @@ class ObjectDetector:
         self._models['REID'] = ModelAdapter(reid_model, reid_preproc)
 
     def _create_detection_model(self):
+        print(self._detection_inference_framework)
         if self._detection_inference_framework in EDGE_TPU_NAMES:
+            print('DETECTION: EDGETPU!!!!')
             model = nnio.zoo.edgetpu.detection.SSDMobileNet(
                 device=self._detection_inference_device)
-        if self._detection_inference_framework in OPENVINO_NAMES:
+        elif self._detection_inference_framework in OPENVINO_NAMES:
+            print('DETECTION: OPENVINO_NAMES!!!!')
             model = nnio.zoo.openvino.detection.SSDMobileNetV2(
                 device=self._detection_inference_device)
         else:
+            print('DETECTION: ONNX!!!!')
             model = nnio.zoo.onnx.detection.SSDMobileNetV1()
 
         return model
@@ -252,25 +266,25 @@ class ObjectDetector:
                                               'image_overlay')
 
         self._detection_inference_framework = rospy.get_param('/%s/detection_inference_framework' % self._name,
-                                                              'ONNX').upper()
+                                                              'EDGETPU').upper()
 
         self._detection_inference_device = rospy.get_param('/%s/detection_inference_device' % self._name,
-                                                           'CPU').upper()
+                                                           'TPU:0').upper()
 
         self._reid_inference_framework = rospy.get_param('/%s/reid_inference_framework' % self._name,
-                                                         'ONNX').upper()
+                                                         'OPENVINO').upper()
 
         self._reid_inference_device = rospy.get_param('/%s/reid_inference_device' % self._name,
-                                                      'CPU').upper()
+                                                      'MYRIAD').upper()
 
         self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name,
                                                    20)
 
         self._reid_model_path = rospy.get_param('/%s/reid_model_path' % self._name,
-                                                'http://192.168.123.4:8345/onnx/reid/osnet_x1_0_op10.onnx')
+                                                'http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml')
 
         self._reid_bin_path = rospy.get_param(
-            '/%s/reid_bin_path' % self._name, '')  # TODO defailt bin path
+            '/%s/reid_bin_path' % self._name, 'http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin')  # TODO defailt bin path
 
         self._threshold = rospy.get_param('/%s/threshold' % self._name, 0.7)
 

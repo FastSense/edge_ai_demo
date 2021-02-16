@@ -242,8 +242,11 @@ class ObjectDetector:
 
         self._name = rospy.get_param('node_name', 'object_detector')
 
-        self._image_overlay = rospy.get_param('/%s/image_overlay' % self._name,
-                                              'image_overlay')
+        self._in_img_topics = rospy.get_param('/%s/in_img_topics' % self._name, '')
+        self._out_img_topics = rospy.get_param('/%s/out_img_topics' % self._name, '')
+
+        print(self._in_img_topics, self._out_img_topics)
+
         self._detection_inference_framework = rospy.get_param('/%s/detection_inference_framework' % self._name, 'ONNX').upper()
         self._detection_inference_device = rospy.get_param('/%s/detection_inference_device' % self._name, 'CPU').upper()
 

@@ -14,7 +14,13 @@
     <arg name="max_inference_rate"             default="20"/>
     <arg name="threshold"                      default="0.7"/>
 
+    <arg name="in_img_topics" default="[/camera1/color/image_raw, /camera2/color/image_raw]"/>
+    <arg name="out_img_topics" default="[image_overlay_1, image_overlay_2]"/>
+
     <node name="object_detector" pkg="desktop_demo" type="detection_node.py" >
+      <rosparam param="in_img_topics"  subst_value="True">$(arg in_img_topics)</rosparam>
+      <rosparam param="out_img_topics" subst_value="True">$(arg out_img_topic)</rosparam>
+
       <param name="node_name"                      value="$(arg node_name_arg)"/>
       <param name="image_overlay"                  value="$(arg image_overlay)"/> 
 

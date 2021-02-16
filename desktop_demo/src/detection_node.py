@@ -188,11 +188,11 @@ class ObjectDetector:
         source._image_pub.publish(output)
 
     def _fill_sources(self):
-        self._sources.append(ImageSource(
-            self._name, "/camera1/color/image_raw", "image_overlay_1"))
+        if (len(self._in_img_topics) != len(self._out_img_topics)):
+            rospy.signal_shutdown("in topic count not equal to out topic count")
 
-        self._sources.append(ImageSource(
-            self._name, "/camera2/color/image_raw", "image_overlay_2"))
+        for i in range(len(self._in_img_topics)):
+            self._sources.append(ImageSource(self._name, self._in_img_topics[i], self._out_img_topics[i]))
 
     def _fill_models(self):
         detection_model = self._create_detection_model()
@@ -242,21 +242,31 @@ class ObjectDetector:
 
         self._name = rospy.get_param('node_name', 'object_detector')
 
-        self._in_img_topics = rospy.get_param('/%s/in_img_topics' % self._name, '')
-        self._out_img_topics = rospy.get_param('/%s/out_img_topics' % self._name, '')
+        self._in_img_topics = rospy.get_param(
+            '/%s/in_img_topics' % self._name, '')
+        self._out_img_topics = rospy.get_param(
+            '/%s/out_img_topics' % self._name, '')
 
-        rospy.logwarn("multi topics : %s, %s", self._in_img_topics, self._out_img_topics)
+        rospy.logwarn("multi topics : %s, %s",
+                      self._in_img_topics, self._out_img_topics)
 
-        self._detection_inference_framework = rospy.get_param('/%s/detection_inference_framework' % self._name, 'ONNX').upper()
-        self._detection_inference_device = rospy.get_param('/%s/detection_inference_device' % self._name, 'CPU').upper()
+        self._detection_inference_framework = rospy.get_param(
+            '/%s/detection_inference_framework' % self._name, 'ONNX').upper()
+        self._detection_inference_device = rospy.get_param(
+            '/%s/detection_inference_device' % self._name, 'CPU').upper()
 
-        self._reid_inference_framework = rospy.get_param('/%s/reid_inference_framework' % self._name, 'ONNX').upper()
-        self._reid_inference_device = rospy.get_param('/%s/reid_inference_device' % self._name, 'CPU').upper()
-        self._reid_model_path = rospy.get_param('/%s/reid_model_path' % self._name, '')
-        self._reid_bin_path = rospy.get_param('/%s/reid_bin_path' % self._name, '')  
+        self._reid_inference_framework = rospy.get_param(
+            '/%s/reid_inference_framework' % self._name, 'ONNX').upper()
+        self._reid_inference_device = rospy.get_param(
+            '/%s/reid_inference_device' % self._name, 'CPU').upper()
+        self._reid_model_path = rospy.get_param(
+            '/%s/reid_model_path' % self._name, '')
+        self._reid_bin_path = rospy.get_param(
+            '/%s/reid_bin_path' % self._name, '')
 
         self._threshold = rospy.get_param('/%s/threshold' % self._name, 0.7)
-        self._max_inference_rate = rospy.get_param('/%s/max_inference_rate' % self._name, 20)
+        self._max_inference_rate = rospy.get_param(
+            '/%s/max_inference_rate' % self._name, 20)
 
 
 if __name__ == '__main__':

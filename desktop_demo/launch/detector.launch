@@ -27,9 +27,4 @@
       <arg name="max_inference_rate'"            value="$(arg max_inference_rate)"/>
       <arg name="threshold"                      value="$(arg threshold)"/>
     </node>
-
 </launch>
-
-
-
-

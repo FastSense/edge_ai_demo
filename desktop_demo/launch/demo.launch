@@ -1,4 +1,4 @@
 <launch>
-    <node name="segmentation_node" pkg="edge_ai_demo" type="segmentation_node.py" />
-    <node name="detection_node" pkg="edge_ai_demo" type="detection_node.py" />
+  <include file="$(find desktop_demo)/launch/rs_multiple_camera.launch"/>
+  <include file="$(find desktop_demo)/launch/detector.launch"/>
 </launch>

@@ -13,7 +13,11 @@ services:
                 - INTEL_OPENCL=19.41.14441
                 - INTEL_OCLOC=19.41.14441
                 - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
-        image: alamoris/ros_ai:latest
+
+        environment:
+        - ROS_HOSTNAME=192.168.11.1
+        - ROS_MASTER_URI=http://localhost:11311
+        image: fastsense/ros_ai:latest
         volumes:
             - /dev/:/dev/
         privileged: true

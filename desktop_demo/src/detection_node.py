@@ -70,7 +70,7 @@ class ImageSourceProcesser:
         self._publish_img(img_np)
 
     def _to_np_arr(self, img_raw):
-        return np.frombuffer(img_raw, dtype='uint8').reshape(
+        return np.frombuffer(img_raw.data, dtype='uint8').reshape(
             (img_raw.height, img_raw.width, 3))
 
     def _detect(self, img_np):

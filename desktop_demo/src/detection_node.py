@@ -230,13 +230,16 @@ class ObjectDetector:
                                                          self._reid_inference_frameworks,
                                                          self._reid_model_paths,
                                                          self._reid_bin_paths):
+
             models.append(self._create_reid_model(
                 dev, num, framework, path, bin_path))
 
         return models
 
     def _create_reid_model(self, in_device, in_num, in_framework, in_model_path, model_bin_path):
-        device_name = (in_device + ':' + in_num) if in_num else in_device
+        device_name = (in_device + ':' + str(in_num)) if str(in_num) else in_device
+
+        rospy.logwarn('Creating model with params: \n%s\t %s\n %s\t %s\t', device_name, in_framework, in_model_path, model_bin_path)
 
         if in_framework in EDGE_TPU_NAMES:
             model = nnio.EdgeTPUModel(
@@ -246,6 +249,8 @@ class ObjectDetector:
                 device=device_name, model_xml=in_model_path, model_bin=model_bin_path)
         else:
             model = nnio.ONNXModel(in_model_path)
+
+        rospy.logwarn('Model created\n')
 
         return model
 
@@ -261,13 +266,13 @@ class ObjectDetector:
             '/%s/out_img_topics' % self._name, '')
 
         self._reid_inference_frameworks = rospy.get_param(
-            '/%s/reid_inference_frameworks' % self._name, '').upper()
+            '/%s/reid_inference_frameworks' % self._name, '')
 
         self._reid_inference_devices = rospy.get_param(
-            '/%s/reid_inference_devices' % self._name, '').upper()
+            '/%s/reid_inference_devices' % self._name, '')
 
         self._reid_device_nums = rospy.get_param(
-            '/%s/reid_device_nums' % self._name, '').upper()
+            '/%s/reid_device_nums' % self._name, '')
 
         self._reid_model_paths = rospy.get_param(
             '/%s/reid_model_paths' % self._name, '')

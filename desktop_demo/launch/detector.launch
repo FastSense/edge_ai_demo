@@ -17,17 +17,17 @@
 
     <arg name="reid_inference_frameworks" default="[OPENVINO, OPENVINO]"/>
 
-    <arg name="reid_inference_devices" default="[MYRIAD, MYRIAD]"/>
+    <arg name="reid_inference_devices" default="['MYRIAD', 'GPU']"/>
 
-    <arg name="reid_device_nums" default="[0, 1]"/>
+    <arg name="reid_device_nums" default="['0', '']"/>
 
     <arg name="reid_model_paths" 
-    default="[http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml, 
-              http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml]"/>
+    default="['http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml', 
+              'http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml']"/>
 
     <arg name="reid_bin_paths" 
-    default="[http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin,
-              http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin]"/>
+    default="['http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin',
+              'http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin']"/>
 
     <node name="object_detector" pkg="desktop_demo" type="detection_node.py" >
       <!-- List Params -->

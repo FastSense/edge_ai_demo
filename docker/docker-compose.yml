@@ -31,13 +31,6 @@ services:
                 - INTEL_OPENCL=19.41.14441
                 - INTEL_OCLOC=19.41.14441
                 - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
-        environment:
-            - ROS_HOSTNAME=192.168.123.148
-            - ROS_MASTER_URI=http://192.168.123.148:11311
-            - BLACKLIST=ydlidar_ros
-                        multirobot_map_merge
-                        astra_camera
-                        gazebo_common
         stdin_open: true
         tty: true
 
@@ -48,6 +41,14 @@ services:
             dockerfile: Dockerfile
             args:
                 - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+
+        environment:
+            - ROS_HOSTNAME=192.168.123.148
+            - ROS_MASTER_URI=http://192.168.123.148:11311
+            - BLACKLIST=ydlidar_ros
+                        multirobot_map_merge
+                        astra_camera
+                        gazebo_common
         entrypoint:
             - ./scripts/entrypoint.sh
         volumes:

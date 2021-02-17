@@ -22,6 +22,9 @@ OPENVINO_NAMES = [
     'OPEN_VINO', 'OPENVINO', 'MYRIAD'
 ]
 
+database_mutex = Lock()
+detection_mutex = Lock()
+
 
 class ModelAdapter():
     """ Adapter Class """
@@ -58,6 +61,7 @@ class ImageSourceProcesser:
                                                  self._img_topic_name)
 
     """ All processes starts here """
+
     def _input_image_cb(self, img):
         img_np = self._to_np_arr(img)
         boxes = self._detect(img_np)
@@ -71,10 +75,11 @@ class ImageSourceProcesser:
 
     def _detect(self, img_np):
         img_preprocessed = self._detection_model.preprocess(img_np)
+        detection_mutex.acquire()
         boxes = self._detection_model.inference(img_preprocessed)
+        detection_mutex.release()
 
         return boxes
-
 
     def _reid(self, img_np, boxes, label):
         for box in boxes:
@@ -83,7 +88,10 @@ class ImageSourceProcesser:
                 img_prepared = self._reid_model.preprocess(img_cropped)
 
                 vec = self._reid_model.inference(img_prepared)[0][0]
-                key = self.find_closest(vec, self._reid_threshold)
+
+                database_mutex.acquire()
+                key = self._find_closest(vec, self._reid_threshold)
+                database_mutex.release()
                 box.label = label + ' ' + key
         return boxes
 
@@ -94,7 +102,7 @@ class ImageSourceProcesser:
             int(w * box.y_1): int(w * box.y_2)
         ]
 
-    def find_closest(self, vec, threshold=0.7):
+    def _find_closest(self, vec, threshold=0.7):
         keys = list(self._database.keys())
         vec = vec / np.sqrt((vec**2).mean())
         distances = [
@@ -115,7 +123,6 @@ class ImageSourceProcesser:
 
         return keys[id_min]
 
-
     def _draw_boxes(self, img_np, boxes):
         for box in boxes:
             box.draw(img_np)
@@ -135,34 +142,29 @@ class ImageSourceProcesser:
 class ObjectDetector:
     def __init__(self):
         self._get_params()
-
         rospy.init_node(self._name)
         self._database = {}
 
-        # Rate Values
-        self._inference_timeout_val = 1.0 / self._max_inference_rate
-        self._inference_timeout = rospy.Duration(self._inference_timeout_val)
+        self._models = self._get_models()
+        self._sources = self._get_sources()
 
-        # Setting models and sources
-        self._models = {}
-        self._fill_models()
-        self._sources = []
-        self._fill_sources()
+    def _get_sources(self):
+        sources = []
 
-        # Setting threads
-        self._threads = []
-        i = 0
-
-    def _fill_sources(self):
         if (len(self._in_img_topics) != len(self._out_img_topics)):
             rospy.signal_shutdown(
                 "input topic number not equal to out topic number")
 
         for i in range(len(self._in_img_topics)):
-            self._sources.append(ImageSourceProcesser(
-                self._name, self._in_img_topics[i], self._out_img_topics[i]))
+            sources.append(
+                ImageSourceProcesser(self._name, self._in_img_topics[i], self._out_img_topics[i],
+                                     self._models['DETECTION'], self._models['REID'][i],
+                                     self._reid_threshold, self._database))
+        return sources
 
-    def _fill_models(self):
+    def _get_models(self):
+        models = {}
+
         detection_model = self._create_detection_model()
         reid_models = self._create_reid_models()
 
@@ -178,10 +180,12 @@ class ObjectDetector:
 
         detection_prepoc = detection_model.get_preprocessing()
 
-        self._models['DETECTION'] = ModelAdapter(
+        models['DETECTION'] = ModelAdapter(
             detection_model, detection_prepoc)
-        self._models['REID'] = [ModelAdapter(
+        models['REID'] = [ModelAdapter(
             reid_models[i], reid_preproc) for i in range(len(reid_models))]
+
+        return models
 
     def _create_detection_model(self):
         if self._detection_inference_framework in EDGE_TPU_NAMES:

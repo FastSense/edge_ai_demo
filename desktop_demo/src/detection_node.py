@@ -148,6 +148,7 @@ class ObjectDetector:
             if source._in_img_raw is not None and source._in_img_np_array is not None and source._boxes is not None:
                 source.mutex.acquire()
 
+                begin_full = time.clock()
                 for box in source._boxes:
                     if box.label == 'person':
                         img_cropped = source._get_cropped(
@@ -155,7 +156,12 @@ class ObjectDetector:
 
                         img_prepared = model.preprocess(
                             img_cropped)
+
+
+                        start = time.clock()
                         vec = model.inference(img_prepared)[0][0]
+                        end = time.clock()
+                        print("REID INFERENCE: %s %.2gs from thread %d") % ((end-start), get_ident())
 
                         self.mutex.acquire()
                         key = self.find_closest(vec, self._reid_threshold)
@@ -168,6 +174,10 @@ class ObjectDetector:
 
                 self._publish_src_output(source, source._in_img_np_array)
 
+                end_full = time.clock()
+
+
+                print("REID INFERENCE_FULL: %s %.2gs from thread %d") % ((end_full-start_full), get_ident())
                 source.mutex.release()
             time.sleep(timeout)
 

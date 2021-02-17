@@ -8,8 +8,9 @@ import numpy as np
 import nnio
 
 from threading import Lock, Thread, get_ident
+
 import time
-import functools
+import itertools
 
 from sensor_msgs.msg import Image
 
@@ -82,25 +83,26 @@ class ObjectDetector:
         rospy.init_node(self._name)
 
         self.mutex = Lock()
-        self._sources = []
-        self._models = {}
         self._database = {}
-        self._timers = []
-        self._threads = []
 
         self._inference_timeout_val = 1.0 / self._max_inference_rate
         self._inference_timeout = rospy.Duration(self._inference_timeout_val)
 
+        self._models = {}
         self._fill_models()
+        self._sources = []
         self._fill_sources()
 
-        self._timers.append(rospy.Timer(
-            self._inference_timeout, self._detection_inference))
+        self._timers = []
+        self._timers.append(rospy.Timer(self._inference_timeout, self._detection_inference))
 
+        self._threads = []
+        i = 0
         for source in self._sources:
             self._threads.append(Thread(target=self._reid_inference_src, args=(
-                source, self._inference_timeout_val)))
+                source, self._models['REID'][i], self._inference_timeout_val)))
             self._threads[-1].start()
+            i += 1
 
     def input_image_cb(self, msg):
         self._input_image_raw = msg
@@ -151,13 +153,12 @@ class ObjectDetector:
                         img_cropped = source._get_cropped(
                             source._in_img_np_array, box)
 
-                        img_prepared = self._models['REID'].preprocess(
+                        img_prepared = model.preprocess(
                             img_cropped)
-                        vec = self._models['REID'].inference(img_prepared)[
-                            0][0]
+                        vec = model.inference(img_prepared)[0][0]
 
                         self.mutex.acquire()
-                        key = self.find_closest(vec, self._threshold)
+                        key = self.find_closest(vec, self._reid_threshold)
                         self.mutex.release()
 
                         box.label = 'person ' + key
@@ -191,7 +192,7 @@ class ObjectDetector:
 
     def _fill_models(self):
         detection_model = self._create_detection_model()
-        reid_model = self._create_reid_model()
+        reid_models = self._create_reid_models()
 
         reid_preproc = nnio.Preprocessing(resize=(128, 256),
                                           dtype='float32',
@@ -207,7 +208,8 @@ class ObjectDetector:
 
         self._models['DETECTION'] = ModelAdapter(
             detection_model, detection_prepoc)
-        self._models['REID'] = ModelAdapter(reid_model, reid_preproc)
+        self._models['REID'] = [ModelAdapter(reid_models[i], reid_preproc)
+                                for i in range(len(reid_models))]
 
     def _create_detection_model(self):
         if self._detection_inference_framework in EDGE_TPU_NAMES:
@@ -221,43 +223,67 @@ class ObjectDetector:
 
         return model
 
-    def _create_reid_model(self):
-        if self._reid_inference_framework in EDGE_TPU_NAMES:
+    def _create_reid_models(self):
+        models = []
+        for (dev, num, framework, path, bin_path) in zip(self._reid_inference_devices,
+                                                         self._reid_device_nums,
+                                                         self._reid_inference_frameworks,
+                                                         self._reid_model_paths,
+                                                         self._reid_bin_paths):
+            models.append(self._create_reid_model(
+                dev, num, framework, path, bin_path))
+
+        return models
+
+    def _create_reid_model(self, in_device, in_num, in_framework, in_model_path, model_bin_path):
+        device_name = (in_device + ':' + in_num) if in_num else in_device
+
+        if in_framework in EDGE_TPU_NAMES:
             model = nnio.EdgeTPUModel(
-                device=self._reid_inference_device, model_path=self._reid_model_path)
-        elif self._reid_inference_framework in OPENVINO_NAMES:
+                device=device_name, model_path=in_model_path)
+        elif in_framework in OPENVINO_NAMES:
             model = nnio.OpenVINOModel(
-                device=self._reid_inference_device, model_xml=self._reid_model_path, model_bin=self._reid_bin_path)
+                device=device_name, model_xml=in_model_path, model_bin=model_bin_path)
         else:
-            model = nnio.ONNXModel(self._reid_model_path)
+            model = nnio.ONNXModel(in_model_path)
 
         return model
 
     def _get_params(self):
 
+        # Node name
         self._name = rospy.get_param('node_name', 'object_detector')
 
+        # Lists
         self._in_img_topics = rospy.get_param(
             '/%s/in_img_topics' % self._name, '')
         self._out_img_topics = rospy.get_param(
             '/%s/out_img_topics' % self._name, '')
 
+        self._reid_inference_frameworks = rospy.get_param(
+            '/%s/reid_inference_frameworks' % self._name, '').upper()
+
+        self._reid_inference_devices = rospy.get_param(
+            '/%s/reid_inference_devices' % self._name, '').upper()
+
+        self._reid_device_nums = rospy.get_param(
+            '/%s/reid_device_nums' % self._name, '').upper()
+
+        self._reid_model_paths = rospy.get_param(
+            '/%s/reid_model_paths' % self._name, '')
+
+        self._reid_bin_paths = rospy.get_param(
+            '/%s/reid_bin_paths' % self._name, '')
+
+        # Single params
         self._detection_inference_framework = rospy.get_param(
             '/%s/detection_inference_framework' % self._name, 'ONNX').upper()
 
         self._detection_inference_device = rospy.get_param(
             '/%s/detection_inference_device' % self._name, 'CPU').upper()
 
-        self._reid_inference_framework = rospy.get_param(
-            '/%s/reid_inference_framework' % self._name, 'ONNX').upper()
-        self._reid_inference_device = rospy.get_param(
-            '/%s/reid_inference_device' % self._name, 'CPU').upper()
-        self._reid_model_path = rospy.get_param(
-            '/%s/reid_model_path' % self._name, '')
-        self._reid_bin_path = rospy.get_param(
-            '/%s/reid_bin_path' % self._name, '')
-
-        self._threshold = rospy.get_param('/%s/threshold' % self._name, 0.7)
+        self._reid_threshold = rospy.get_param(
+            '/%s/threshold' % self._name, 0.7)
         self._max_inference_rate = rospy.get_param(
             '/%s/max_inference_rate' % self._name, 20)
 

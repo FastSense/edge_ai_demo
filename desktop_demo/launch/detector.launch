@@ -1,36 +1,54 @@
 <launch>
+
+    <!-- Single args -->
     <arg name="node_name_arg"                  default="object_detector"/>
     <arg name="image_overlay"                  default="image_overlay"/> 
 
     <arg name="detection_inference_framework"  default="EDGETPU"/>
     <arg name="detection_inference_device"     default="TPU:0"/>
 
-    <arg name="reid_inference_framework"       default="OPENVINO"/>
-    <arg name="reid_inference_device"          default="MYRIAD"/>
-
-    <arg name="reid_model_path"                default="http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml"/>
-    <arg name="reid_bin_path"                  default="http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin"/>
-
     <arg name="max_inference_rate"             default="20"/>
     <arg name="threshold"                      default="0.7"/>
 
+
+    <!-- List args for every source-->
     <arg name="in_img_topics" default="[/camera1/color/image_raw, /camera2/color/image_raw]"/>
     <arg name="out_img_topics" default="[image_overlay_1, image_overlay_2]"/>
 
+    <arg name="reid_inference_frameworks" default="[OPENVINO, OPENVINO]"/>
+
+    <arg name="reid_inference_devices" default="[MYRIAD, MYRIAD]"/>
+
+    <arg name="reid_device_nums" default="[0, 1]"/>
+
+    <arg name="reid_model_paths" 
+    default="[http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml, 
+              http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml]"/>
+
+    <arg name="reid_bin_paths" 
+    default="[http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin,
+              http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin]"/>
+
     <node name="object_detector" pkg="desktop_demo" type="detection_node.py" >
+      <!-- List Params -->
       <rosparam param="in_img_topics"  subst_value="True">$(arg in_img_topics)</rosparam>
       <rosparam param="out_img_topics" subst_value="True">$(arg out_img_topics)</rosparam>
 
+      <rosparam param="reid_inference_frameworks"  subst_value="True">$(arg reid_inference_frameworks)</rosparam>
+      <rosparam param="reid_inference_devices" subst_value="True">$(arg reid_inference_devices)</rosparam>
+
+      <rosparam param="reid_device_nums" subst_value="True">$(arg reid_device_nums)</rosparam>
+
+      <rosparam param="reid_model_paths"  subst_value="True">$(arg reid_model_paths)</rosparam>
+      <rosparam param="reid_bin_paths" subst_value="True">$(arg reid_bin_paths)</rosparam>
+
+      <!-- Single Params -->
       <param name="node_name"                      value="$(arg node_name_arg)"/>
       <param name="image_overlay"                  value="$(arg image_overlay)"/> 
 
       <param name="detection_inference_framework"  value="$(arg detection_inference_framework)"/>
       <param name="detection_inference_device"     value="$(arg detection_inference_device)"/>
 
-      <param name="reid_inference_framework"       value="$(arg reid_inference_framework)"/>
-      <param name="reid_inference_device"          value="$(arg reid_inference_device)"/>
-      <param name="reid_model_path"                value="$(arg reid_model_path)"/>
-      <param name="reid_bin_path"                  value="$(arg reid_bin_path)"/>
 
       <param name="max_inference_rate'"            value="$(arg max_inference_rate)"/>
       <param name="threshold"                      value="$(arg threshold)"/>

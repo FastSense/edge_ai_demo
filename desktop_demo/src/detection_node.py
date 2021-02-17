@@ -78,35 +78,29 @@ class ImageSource:
 class ObjectDetector:
     def __init__(self):
         self._get_params()
-        self.mutex = Lock()
 
         rospy.init_node(self._name)
 
+        self.mutex = Lock()
         self._sources = []
         self._models = {}
         self._database = {}
-
         self._timers = []
         self._threads = []
-
-        self._fill_models()
-        self._fill_sources()
 
         self._inference_timeout_val = 1.0 / self._max_inference_rate
         self._inference_timeout = rospy.Duration(self._inference_timeout_val)
 
-        self._timers.append(rospy.Timer(
-            self._inference_timeout, self._get_boxes))
+        self._fill_models()
+        self._fill_sources()
 
-        id = 1
+        self._timers.append(rospy.Timer(
+            self._inference_timeout, self._detection_inference))
+
         for source in self._sources:
-            self._threads.append(Thread(target=self._inference_source, args=(
+            self._threads.append(Thread(target=self._reid_inference_src, args=(
                 source, self._inference_timeout_val)))
             self._threads[-1].start()
-            id += 1
-
-    def _get_models(self):
-        return None
 
     def input_image_cb(self, msg):
         self._input_image_raw = msg
@@ -132,11 +126,11 @@ class ObjectDetector:
 
         return keys[id_min]
 
-    def _get_boxes(self, event=None):
+    def _detection_inference(self, event=None):
         for source in self._sources:
-            self._get_boxes_from_source(source)
+            self._detection_inference_src(source)
 
-    def _get_boxes_from_source(self, source):
+    def _detection_inference_src(self, source):
         if source._in_img_raw is not None:
 
             source.mutex.acquire()
@@ -147,16 +141,14 @@ class ObjectDetector:
 
             source.mutex.release()
 
-    def _inference_source(self, source, timeout):
+    def _reid_inference_src(self, source, model, timeout):
         while not rospy.is_shutdown():
             if source._in_img_raw is not None and source._in_img_np_array is not None and source._boxes is not None:
                 source.mutex.acquire()
 
-                output_image = np.copy(source._in_img_np_array)
-
                 for box in source._boxes:
                     if box.label == 'person':
-                        img_cropped = source._get_cropped(output_image, box)
+                        img_cropped = source._get_cropped(source._in_img_np_array, box)
 
                         img_prepared = self._models['REID'].preprocess(
                             img_cropped)
@@ -170,14 +162,14 @@ class ObjectDetector:
                         box.label = 'person ' + key
 
                 for box in source._boxes:
-                    box.draw(output_image)
+                    box.draw(source._in_img_np_array)
 
-                self._publish_output(source, output_image)
+                self._publish_src_output(source, source._in_img_np_array)
 
                 source.mutex.release()
             time.sleep(timeout)
 
-    def _publish_output(self, source, output_image):
+    def _publish_src_output(self, source, output_image):
         output = Image()
         output.width = source._in_img_raw.width
         output.height = source._in_img_raw.height
@@ -189,10 +181,12 @@ class ObjectDetector:
 
     def _fill_sources(self):
         if (len(self._in_img_topics) != len(self._out_img_topics)):
-            rospy.signal_shutdown("in topic count not equal to out topic count")
+            rospy.signal_shutdown(
+                "input topic number not equal to out topic number")
 
         for i in range(len(self._in_img_topics)):
-            self._sources.append(ImageSource(self._name, self._in_img_topics[i], self._out_img_topics[i]))
+            self._sources.append(ImageSource(
+                self._name, self._in_img_topics[i], self._out_img_topics[i]))
 
     def _fill_models(self):
         detection_model = self._create_detection_model()
@@ -246,9 +240,6 @@ class ObjectDetector:
             '/%s/in_img_topics' % self._name, '')
         self._out_img_topics = rospy.get_param(
             '/%s/out_img_topics' % self._name, '')
-
-        rospy.logwarn("multi topics : %s, %s",
-                      self._in_img_topics, self._out_img_topics)
 
         self._detection_inference_framework = rospy.get_param(
             '/%s/detection_inference_framework' % self._name, 'ONNX').upper()

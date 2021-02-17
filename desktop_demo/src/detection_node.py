@@ -148,7 +148,8 @@ class ObjectDetector:
 
                 for box in source._boxes:
                     if box.label == 'person':
-                        img_cropped = source._get_cropped(source._in_img_np_array, box)
+                        img_cropped = source._get_cropped(
+                            source._in_img_np_array, box)
 
                         img_prepared = self._models['REID'].preprocess(
                             img_cropped)
@@ -243,6 +244,7 @@ class ObjectDetector:
 
         self._detection_inference_framework = rospy.get_param(
             '/%s/detection_inference_framework' % self._name, 'ONNX').upper()
+
         self._detection_inference_device = rospy.get_param(
             '/%s/detection_inference_device' % self._name, 'CPU').upper()
 

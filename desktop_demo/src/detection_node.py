@@ -34,78 +34,65 @@ class ModelAdapter():
         return self.model(img)
 
 
-class ImageSource:
-    """ Class which permanently updates stored input image from topic in thread (using rospy.Subscriber),
-        storing as well reshaped image, and currently detected boxes, can also reindeficate box with
-        given neural network model and image sequence """
+class ImageSourceProcesser:
+    def __init__(self, node_name, in_img_topic, out_img_topic, detection_model, reid_model, reid_threshold, database):
 
-    def __init__(self, node_name, in_img_topic, out_img_topic):
-        self.mutex = Lock()
-
-        self._image_pub = rospy.Publisher(out_img_topic, Image, queue_size=1)
-        self._img_topic_name = in_img_topic
+        self._reid_threshold = reid_threshold
         self._node_name = node_name
-        self._in_img_raw = None
-        self._in_img_np_array = np.array([])
-        self._camera_img_topic = None
+        self._img_topic_name = in_img_topic
+        self._image_pub = rospy.Publisher(out_img_topic, Image, queue_size=1)
+        self._detection_model = detection_model
+        self._reid_model = reid_model
+        self._reid_threshold = reid_threshold
 
-        self._boxes = []
+        self._database = database
+
+        self._camera_img_topic = None
         self._get_params()
 
         self._in_img_sub = rospy.Subscriber(
             self._camera_img_topic, Image, self._input_image_cb)
 
-    def _input_image_cb(self, msg):
-        self.mutex.acquire()
-        self._in_img_raw = msg
-        self.mutex.release()
-
     def _get_params(self):
         self._camera_img_topic = rospy.get_param('/%s/camera_image_topic' % self._node_name,
                                                  self._img_topic_name)
 
-    def _get_cropped(self, image, box):
+    """ All processes starts here """
+    def _input_image_cb(self, img):
+        img_np = self._to_np_arr(img)
+        boxes = self._detect(img_np)
+        boxes = self._reid(img_np, boxes, 'person')
+        img_np = self._draw_boxes(img_np, boxes)
+        self._publish_img(img_np)
+
+    def _to_np_arr(self, img_raw):
+        return np.frombuffer(img_raw, dtype='uint8').reshape(
+            (img_raw.height, img_raw.width, 3))
+
+    def _detect(self, img_np):
+        img_preprocessed = self._detection_model.preprocess(img_np)
+        boxes = self._detection_model.inference(img_preprocessed)
+
+        return boxes
+
+
+    def _reid(self, img_np, boxes, label):
+        for box in boxes:
+            if box.label == label:
+                img_cropped = self._crop(img_np, box)
+                img_prepared = self._reid_model.preprocess(img_cropped)
+
+                vec = self._reid_model.inference(img_prepared)[0][0]
+                key = self.find_closest(vec, self._reid_threshold)
+                box.label = label + ' ' + key
+        return boxes
+
+    def _crop(self, image, box):
         h, w, _ = image.shape
         return image[
             int(h * box.x_1): int(h * box.x_2),
             int(w * box.y_1): int(w * box.y_2)
         ]
-
-    def _raw_to_np_array(self):
-        return np.frombuffer(self._in_img_raw.data, dtype='uint8').reshape(
-            (self._in_img_raw.height, self._in_img_raw.width, 3))
-
-
-class ObjectDetector:
-    def __init__(self):
-        self._get_params()
-
-        rospy.init_node(self._name)
-
-        self.mutex = Lock()
-        self._database = {}
-
-        self._inference_timeout_val = 1.0 / self._max_inference_rate
-        self._inference_timeout = rospy.Duration(self._inference_timeout_val)
-
-        self._models = {}
-        self._fill_models()
-        self._sources = []
-        self._fill_sources()
-
-        self._timers = []
-        self._timers.append(rospy.Timer(self._inference_timeout, self._detection_inference))
-
-        self._threads = []
-        i = 0
-        for source in self._sources:
-            self._threads.append(Thread(target=self._reid_inference_src, args=(
-                source, self._models['REID'][i], self._inference_timeout_val)))
-            self._threads[-1].start()
-            i += 1
-
-    def input_image_cb(self, msg):
-        self._input_image_raw = msg
 
     def find_closest(self, vec, threshold=0.7):
         keys = list(self._database.keys())
@@ -120,7 +107,7 @@ class ObjectDetector:
             id_min = np.argmin(distances)
         if id_min is None or distances[id_min] > threshold:
             new_key = str(len(self._database))
-            rospy.loginfo('adding %s from thread %d', new_key, get_ident())
+            rospy.loginfo('adding %s', new_key)
             if id_min is not None:
                 rospy.loginfo('min distance: %s', distances[id_min])
             self._database[new_key] = vec
@@ -128,70 +115,43 @@ class ObjectDetector:
 
         return keys[id_min]
 
-    def _detection_inference(self, event=None):
-        for source in self._sources:
-            self._detection_inference_src(source)
 
-    def _detection_inference_src(self, source):
-        if source._in_img_raw is not None:
+    def _draw_boxes(self, img_np, boxes):
+        for box in boxes:
+            box.draw(img_np)
+        return img_np
 
-            source.mutex.acquire()
-
-            source._in_img_np_array = source._raw_to_np_array()
-            img = self._models['DETECTION'].preprocess(source._in_img_np_array)
-            source._boxes = self._models['DETECTION'].inference(img)
-
-            source.mutex.release()
-
-    def _reid_inference_src(self, source, model, timeout):
-        while not rospy.is_shutdown():
-            if source._in_img_raw is not None and source._in_img_np_array is not None and source._boxes is not None:
-                source.mutex.acquire()
-
-                begin_full = time.clock()
-                for box in source._boxes:
-                    if box.label == 'person':
-                        img_cropped = source._get_cropped(
-                            source._in_img_np_array, box)
-
-                        img_prepared = model.preprocess(
-                            img_cropped)
-
-
-                        start = time.clock()
-                        vec = model.inference(img_prepared)[0][0]
-                        end = time.clock()
-                        rospy.logwarn("REID INFERENCE: %.3f from thread %d",(end-start), get_ident())
-
-                        self.mutex.acquire()
-                        key = self.find_closest(vec, self._reid_threshold)
-                        self.mutex.release()
-
-                        box.label = 'person ' + key
-
-                for box in source._boxes:
-                    box.draw(source._in_img_np_array)
-
-                self._publish_src_output(source, source._in_img_np_array)
-
-                end_full = time.clock()
-
-
-                rospy.logwarn("REID INFERENCE_FULL: %.3f from thread %d", (end_full-begin_full), get_ident())
-                source.mutex.release()
-
-                rospy.logwarn("sleep for %f", timeout)
-            time.sleep(timeout)
-
-    def _publish_src_output(self, source, output_image):
+    def _publish_img(self, img_np):
         output = Image()
-        output.width = source._in_img_raw.width
-        output.height = source._in_img_raw.height
-        output.data = output_image.tobytes()
+        output.width = img_np.shape[1]
+        output.height = img_np.shape[0]
+        output.data = img_np.tobytes()
         output.encoding = 'rgb8'
         output.step = len(output.data) // output.height
 
-        source._image_pub.publish(output)
+        self._image_pub.publish(output)
+
+
+class ObjectDetector:
+    def __init__(self):
+        self._get_params()
+
+        rospy.init_node(self._name)
+        self._database = {}
+
+        # Rate Values
+        self._inference_timeout_val = 1.0 / self._max_inference_rate
+        self._inference_timeout = rospy.Duration(self._inference_timeout_val)
+
+        # Setting models and sources
+        self._models = {}
+        self._fill_models()
+        self._sources = []
+        self._fill_sources()
+
+        # Setting threads
+        self._threads = []
+        i = 0
 
     def _fill_sources(self):
         if (len(self._in_img_topics) != len(self._out_img_topics)):
@@ -199,7 +159,7 @@ class ObjectDetector:
                 "input topic number not equal to out topic number")
 
         for i in range(len(self._in_img_topics)):
-            self._sources.append(ImageSource(
+            self._sources.append(ImageSourceProcesser(
                 self._name, self._in_img_topics[i], self._out_img_topics[i]))
 
     def _fill_models(self):
@@ -220,8 +180,8 @@ class ObjectDetector:
 
         self._models['DETECTION'] = ModelAdapter(
             detection_model, detection_prepoc)
-        self._models['REID'] = [ModelAdapter(reid_models[i], reid_preproc)
-                                for i in range(len(reid_models))]
+        self._models['REID'] = [ModelAdapter(
+            reid_models[i], reid_preproc) for i in range(len(reid_models))]
 
     def _create_detection_model(self):
         if self._detection_inference_framework in EDGE_TPU_NAMES:
@@ -249,9 +209,11 @@ class ObjectDetector:
         return models
 
     def _create_reid_model(self, in_device, in_num, in_framework, in_model_path, model_bin_path):
-        device_name = (in_device + ':' + str(in_num)) if str(in_num) else in_device
+        device_name = (in_device + ':' + str(in_num)
+                       ) if str(in_num) else in_device
 
-        rospy.logwarn('Creating model with params: \n%s\t %s\n %s\t %s\t', device_name, in_framework, in_model_path, model_bin_path)
+        rospy.logwarn('Creating model with params: \n%s\t %s\n %s\t %s\t',
+                      device_name, in_framework, in_model_path, model_bin_path)
 
         if in_framework in EDGE_TPU_NAMES:
             model = nnio.EdgeTPUModel(
@@ -271,7 +233,7 @@ class ObjectDetector:
         # Node name
         self._name = rospy.get_param('node_name', 'object_detector')
 
-        # Lists
+        # Multiple params
         self._in_img_topics = rospy.get_param(
             '/%s/in_img_topics' % self._name, '')
         self._out_img_topics = rospy.get_param(

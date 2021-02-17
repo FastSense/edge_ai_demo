@@ -161,7 +161,7 @@ class ObjectDetector:
                         start = time.clock()
                         vec = model.inference(img_prepared)[0][0]
                         end = time.clock()
-                        print("REID INFERENCE: %s %.2gs from thread %d") % ((end-start), get_ident())
+                        rospy.logwarn("REID INFERENCE: %.3f from thread %d",(end-start), get_ident())
 
                         self.mutex.acquire()
                         key = self.find_closest(vec, self._reid_threshold)
@@ -177,8 +177,10 @@ class ObjectDetector:
                 end_full = time.clock()
 
 
-                print("REID INFERENCE_FULL: %s %.2gs from thread %d") % ((end_full-start_full), get_ident())
+                rospy.logwarn("REID INFERENCE_FULL: %.3f from thread %d", (end_full-begin_full), get_ident())
                 source.mutex.release()
+
+                rospy.logwarn("sleep for %f", timeout)
             time.sleep(timeout)
 
     def _publish_src_output(self, source, output_image):

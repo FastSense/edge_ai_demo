@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+    ros_ai:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                - package_url=https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.1/l_openvino_toolkit_dev_ubuntu18_p_2021.1.110.tgz
+                - GMMLIB=19.3.2
+                - IGC_CORE=1.0.2597
+                - IGC_OPENCL=1.0.2597
+                - INTEL_OPENCL=19.41.14441
+                - INTEL_OCLOC=19.41.14441
+                - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+        image: alamoris/ros_ai:latest
+        volumes:
+            - /dev/:/dev/
+        privileged: true
+        network_mode: "host"
+
+        stdin_open: true
+        tty: true

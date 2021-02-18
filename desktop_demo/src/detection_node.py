@@ -52,9 +52,11 @@ class ImageSourceProcesser:
 
         self._camera_img_topic = None
         self._get_params()
+         
+        self._timer = rospy.Timer(30, self._reid_thread)
 
         self._in_img_sub = rospy.Subscriber(
-            self._camera_img_topic, Image, self._input_image_cb)
+            self._camera_img_topic, Image, self._input_image_cb, queue_size=3, buff_size=2**24, tcp_nodelay=True)
 
     def _get_params(self):
         self._camera_img_topic = rospy.get_param('/%s/camera_image_topic' % self._node_name,
@@ -63,11 +65,20 @@ class ImageSourceProcesser:
     """ All processes starts here """
 
     def _input_image_cb(self, img):
-        img_np = self._to_np_arr(img)
-        boxes = self._detect(img_np)
-        boxes = self._reid(img_np, boxes, 'person')
-        img_np = self._draw_boxes(img_np, boxes)
-        self._publish_img(img_np)
+        if img is None:
+            return
+        self._img_np = self._to_np_arr(img)
+        self._boxes = self._detect(img_np)
+
+    def _reid_thread(self):
+        if boxes:
+            boxes = self._reid(self._img_np, self._boxes, 'person')
+            img_output = np.copy(self._img_np)
+            img_np = self._draw_boxes(img_output, self_.boxes)
+            self._publish_img(img_output)
+        elif img_np.size == 0:
+            self._publish_img(self_img)
+
 
     def _to_np_arr(self, img_raw):
         return np.frombuffer(img_raw.data, dtype='uint8').reshape(
@@ -216,7 +227,7 @@ class ObjectDetector:
         device_name = (in_device + ':' + str(in_num)
                        ) if str(in_num) else in_device
 
-        rospy.logwarn('Creating model with params: \n%s\t %s\n %s\t %s\t',
+        rospy.logwarn('Creating model with params: \n%s\t %s\n %s\n %s\t',
                       device_name, in_framework, in_model_path, model_bin_path)
 
         if in_framework in EDGE_TPU_NAMES:

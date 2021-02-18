@@ -78,39 +78,37 @@ class ImageSourceProcesser:
         if img is None:
             return
 
-        if img_mutex.locked():
-            return
-        else:
-            img_mutex.acquire()
         self._img_np = self._to_np_arr(img)
-        img_mutex.release()
-
         self._boxes = self._detect(self._img_np)
-        self._got_box= True
+
         self._detection_rate.sleep()
 
     def _reid_thread(self):
         while not rospy.is_shutdown():
-            if self._got_box:
-                self._got_box = False
-                
+            if self._boxes:
+
+                s=time.time()
+
                 img_mutex.acquire()
-                if self._img_np.size == 0:
-                    pass
                 img_output = np.copy(self._img_np)
                 boxes = self._boxes.copy()
                 img_mutex.release()
+                e=time.time()
+                rospy.loginfo('img and boxes copy time%f', e-s)
 
+                s=time.time()
+                rospy.loginfo('img and boxes copy time%f', e-s)
                 boxes = self._reid(img_output, boxes, 'person')
+                e=time.time()
 
+                rospy.loginfo('reid time%f', e-s)
                 self._draw_boxes(img_output, boxes)
+
                 self._publish_img(img_output)
-            elif self._img_np.size != 0 and self._boxes:
+            elif self._img_np.size != 0:
                 img_mutex.acquire()
                 img_output = np.copy(self._img_np)
-                boxes = self._boxes.copy()
                 img_mutex.release()
-                img_output = self._draw_boxes(img_output, boxes)
                 self._publish_img(img_output)
             else:
                 pass

@@ -79,7 +79,11 @@ class ImageSourceProcesser:
             return
 
         self._img_np = self._to_np_arr(img)
+
+        s=time.time()
         self._boxes = self._detect(self._img_np)
+        e=time.time()
+        rospy.logwarn_throttle(5.0,'detection inference time %f\n from thread %d', e-s, get_ident() )
 
         self._detection_rate.sleep()
 
@@ -88,29 +92,27 @@ class ImageSourceProcesser:
             if self._boxes:
 
                 s=time.time()
-
                 img_mutex.acquire()
                 img_output = np.copy(self._img_np)
                 boxes = self._boxes.copy()
                 img_mutex.release()
-                e=time.time()
-                rospy.loginfo('img and boxes copy time%f', e-s)
 
                 s=time.time()
-                rospy.loginfo('img and boxes copy time%f', e-s)
                 boxes = self._reid(img_output, boxes, 'person')
                 e=time.time()
 
-                rospy.loginfo('reid time%f', e-s)
+                rospy.logwarn_throttle(5.0,'reid full time %f\n from thread %d', e-s, get_ident() )
                 self._draw_boxes(img_output, boxes)
 
                 self._publish_img(img_output)
             elif self._img_np.size != 0:
+                rospy.logwarn('hellow')
                 img_mutex.acquire()
                 img_output = np.copy(self._img_np)
                 img_mutex.release()
                 self._publish_img(img_output)
             else:
+                rospy.logwarn('hellow2')
                 pass
             self._reid_rate.sleep()
 
@@ -130,22 +132,39 @@ class ImageSourceProcesser:
     def _reid(self, img_np, boxes, label):
         for box in boxes:
             if box.label == label:
+
+                s=time.time()
                 img_cropped = self._crop(img_np, box)
+                e=time.time()
+                rospy.logwarn_throttle(5.0,'reid crop time %f\n from thread %d', e-s, get_ident() )
+
+                s=time.time()
                 img_prepared = self._reid_model.preprocess(img_cropped)
+                e=time.time()
+                rospy.logwarn_throttle(5.0,'reid preprocess time %f\n from thread %d', e-s, get_ident() )
 
-                vec = self._reid_model.inference(img_prepared)[0][0]
 
+                s=time.time()
+                vec = self._reid_model.inference(img_prepared)[0]
+                e=time.time()
+                rospy.logwarn_throttle(5.0,'reid inference time %f\n from thread %d', e-s, get_ident() )
+
+
+                s=time.time()
                 database_mutex.acquire()
                 key = self._find_closest(vec, self._reid_threshold)
                 database_mutex.release()
+                e=time.time()
+                rospy.logwarn_throttle(5.0,'reid database time %f\n from thread %d', e-s, get_ident() )
+
                 box.label = label + ' ' + key
         return boxes
 
     def _crop(self, image, box):
         h, w, _ = image.shape
         return image[
-            int(h * box.x_1): int(h * box.x_2),
-            int(w * box.y_1): int(w * box.y_2)
+            int(h * max(0, box.x_1)): int(h * min(1, box.x_2)),
+            int(w * max(0, box.y_1)): int(w * min(1, box.y_2))
         ]
 
     def _find_closest(self, vec, threshold=0.7):
@@ -206,6 +225,8 @@ class ObjectDetector:
                 ImageSourceProcesser(self._name, self._in_img_topics[i], self._out_img_topics[i],
                                      self._models['DETECTION'], self._models['REID'][i],
                                      self._reid_threshold, self._database, self._inference_rate))
+            rospy.logwarn(self._inference_rate)
+
         return sources
 
     def _get_models(self):
@@ -214,26 +235,20 @@ class ObjectDetector:
         detection_model = self._create_detection_model()
         reid_models = self._create_reid_models()
 
-        reid_preproc = nnio.Preprocessing(resize=(128, 256),
-                                          dtype='float32',
-                                          divide_by_255=True,
-                                          means=[0.485, 0.456, 0.406],
-                                          scales=1 /
-                                          np.array([0.229, 0.224, 0.225]),
-                                          channels_first=True,
-                                          batch_dimension=True,
-                                          padding=True)
-
         detection_prepoc = detection_model.get_preprocessing()
 
         models['DETECTION'] = ModelAdapter(
             detection_model, detection_prepoc)
         models['REID'] = [ModelAdapter(
-            reid_models[i], reid_preproc) for i in range(len(reid_models))]
+            reid_models[i], reid_models[i].get_preprocessing()) for i in range(len(reid_models))]
 
         return models
 
     def _create_detection_model(self):
+
+        rospy.logwarn('Creating detection model with params: \n%s\t %s\n',
+                      self._detection_inference_device, self._detection_inference_framework)
+
         if self._detection_inference_framework in EDGE_TPU_NAMES:
             model = nnio.zoo.edgetpu.detection.SSDMobileNet(
                 device=self._detection_inference_device)
@@ -256,7 +271,7 @@ class ObjectDetector:
             models.append(self._create_reid_model(
                 dev, num, framework, path, bin_path))
 
-            time.sleep(2.0)
+            time.sleep(4.0)
 
         return models
 
@@ -264,17 +279,16 @@ class ObjectDetector:
         device_name = (in_device + ':' + str(in_num)
                        ) if str(in_num) else in_device
 
-        rospy.logwarn('Creating model with params: \n%s\t %s\n %s\n %s\t',
+        rospy.logwarn('Creating reid model with params: \n%s\t %s\n %s\n %s\t',
                       device_name, in_framework, in_model_path, model_bin_path)
 
+
         if in_framework in EDGE_TPU_NAMES:
-            model = nnio.EdgeTPUModel(
-                device=device_name, model_path=in_model_path)
+            model = nnio.zoo.edgetpu.reid.OSNet(device=device_name)
         elif in_framework in OPENVINO_NAMES:
-            model = nnio.OpenVINOModel(
-                device=device_name, model_xml=in_model_path, model_bin=model_bin_path)
+            model = nnio.zoo.openvino.reid.OSNet(device=device_name)
         else:
-            model = nnio.ONNXModel(in_model_path)
+            model = nnio.zoo.onnx.reid.OSNet(device=device_name)
 
         rospy.logwarn('Model created\n')
 

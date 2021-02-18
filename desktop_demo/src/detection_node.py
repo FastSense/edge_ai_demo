@@ -24,6 +24,7 @@ OPENVINO_NAMES = [
 
 database_mutex = Lock()
 detection_mutex = Lock()
+img_mutex = Lock()
 
 
 class ModelAdapter():
@@ -38,25 +39,33 @@ class ModelAdapter():
 
 
 class ImageSourceProcesser:
-    def __init__(self, node_name, in_img_topic, out_img_topic, detection_model, reid_model, reid_threshold, database):
+    def __init__(self, node_name, in_img_topic, out_img_topic, detection_model, reid_model, reid_threshold, database, inference_rate):
 
         self._reid_threshold = reid_threshold
         self._node_name = node_name
         self._img_topic_name = in_img_topic
-        self._image_pub = rospy.Publisher(out_img_topic, Image)
+        self._image_pub = rospy.Publisher(out_img_topic, Image, queue_size=1)
         self._detection_model = detection_model
         self._reid_model = reid_model
         self._reid_threshold = reid_threshold
+        self._got_box = False
 
         self._database = database
 
         self._camera_img_topic = None
         self._get_params()
+
+        self._img_np = np.array([]) 
+        self._boxes = []
          
-        self._timer = rospy.Timer(30, self._reid_thread)
+        self._detection_rate = rospy.Rate(inference_rate * 2.0)
+        self._reid_rate = rospy.Rate(inference_rate)
+
 
         self._in_img_sub = rospy.Subscriber(
             self._camera_img_topic, Image, self._input_image_cb, queue_size=1, buff_size=2**24, tcp_nodelay=True)
+
+        self._reid_thread = Thread(target=self._reid_thread).start()
 
     def _get_params(self):
         self._camera_img_topic = rospy.get_param('/%s/camera_image_topic' % self._node_name,
@@ -67,19 +76,38 @@ class ImageSourceProcesser:
     def _input_image_cb(self, img):
         if img is None:
             return
+
+        if img_mutex.locked():
+            return
+        else:
+            img_mutex.acquire()
         self._img_np = self._to_np_arr(img)
         self._boxes = self._detect(self._img_np)
+        self._got_box= True
+        self._detection_rate.sleep()
+        img_mutex.release()
 
     def _reid_thread(self):
-        if boxes:
-            boxes = self._reid(self._img_np, self._boxes, 'person')
-            img_output = np.copy(self._img_np)
-            img_np = self._draw_boxes(img_output, self._boxes)
-            self._publish_img(img_output)
-        elif img_np.size != 0:
-            self._publish_img(self._img_np)
-        else:
-            return 
+        while not rospy.is_shutdown():
+            if self._got_box:
+                self._got_box = False
+                
+                img_mutex.acquire()
+                if self._img_np.size == 0:
+                    pass
+                boxes = self._reid(self._img_np, self._boxes, 'person')
+                img_output = np.copy(self._img_np)
+                img_mutex.release()
+
+                img_output = self._draw_boxes(img_output, self._boxes)
+                self._publish_img(img_output)
+            elif self._img_np.size != 0 and self._boxes:
+                img_output = np.copy(self._img_np)
+                img_output = self._draw_boxes(img_output, self._boxes)
+                self._publish_img(img_output)
+            else:
+                pass
+            self._reid_rate.sleep()
 
 
     def _to_np_arr(self, img_raw):
@@ -172,7 +200,7 @@ class ObjectDetector:
             sources.append(
                 ImageSourceProcesser(self._name, self._in_img_topics[i], self._out_img_topics[i],
                                      self._models['DETECTION'], self._models['REID'][i],
-                                     self._reid_threshold, self._database))
+                                     self._reid_threshold, self._database, self._inference_rate))
         return sources
 
     def _get_models(self):
@@ -222,6 +250,8 @@ class ObjectDetector:
 
             models.append(self._create_reid_model(
                 dev, num, framework, path, bin_path))
+
+            time.sleep(2.0)
 
         return models
 
@@ -280,8 +310,9 @@ class ObjectDetector:
 
         self._reid_threshold = rospy.get_param(
             '/%s/threshold' % self._name, 0.7)
-        self._max_inference_rate = rospy.get_param(
-            '/%s/max_inference_rate' % self._name, 20)
+
+        self._inference_rate = rospy.get_param(
+            '/%s/inference_rate' % self._name, 20)
 
 
 if __name__ == '__main__':

@@ -48,7 +48,9 @@ class ImageSourceProcesser:
         self._detection_model = detection_model
         self._reid_model = reid_model
         self._reid_threshold = reid_threshold
-        self._got_box = False
+
+        self._reid_boxes =[]
+        self._has_reid_boxes = False
 
         self._database = database
 
@@ -84,13 +86,22 @@ class ImageSourceProcesser:
         self._boxes = self._detect(self._img_np)
         e=time.time()
         rospy.logwarn_throttle(5.0,'detection inference time %f\n from thread %d', e-s, get_ident() )
+        
+        out_boxes = self._boxes
 
+        if self._has_reid_boxes:
+            out_boxes = self._reid_boxes
+            self._has_reid_boxes = False
+            self._draw_boxes(self._img_np, out_boxes, [])
+        else:
+            self._draw_boxes(self._img_np, out_boxes, ['person'])
+
+        self._publish_img(self._img_np)
         self._detection_rate.sleep()
 
     def _reid_thread(self):
         while not rospy.is_shutdown():
             if self._boxes:
-
                 s=time.time()
                 img_mutex.acquire()
                 img_output = np.copy(self._img_np)
@@ -98,21 +109,12 @@ class ImageSourceProcesser:
                 img_mutex.release()
 
                 s=time.time()
-                boxes = self._reid(img_output, boxes, 'person')
+                self._reid_boxes = self._reid(img_output, boxes, 'person')
+                self._has_reid_boxes = True
                 e=time.time()
 
                 rospy.logwarn_throttle(5.0,'reid full time %f\n from thread %d', e-s, get_ident() )
-                self._draw_boxes(img_output, boxes)
-
-                self._publish_img(img_output)
-            elif self._img_np.size != 0:
-                rospy.logwarn('hellow')
-                img_mutex.acquire()
-                img_output = np.copy(self._img_np)
-                img_mutex.release()
-                self._publish_img(img_output)
             else:
-                rospy.logwarn('hellow2')
                 pass
             self._reid_rate.sleep()
 
@@ -188,9 +190,10 @@ class ImageSourceProcesser:
 
         return keys[id_min]
 
-    def _draw_boxes(self, img_np, boxes):
+    def _draw_boxes(self, img_np, boxes, ignore):
         for box in boxes:
-            box.draw(img_np)
+            if box not in ignore:
+                box.draw(img_np)
         return img_np
 
     def _publish_img(self, img_np):

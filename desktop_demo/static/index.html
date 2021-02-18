@@ -36,44 +36,21 @@
         <main>
             <h1>Edge AI Demo</h1>
             <div>
-                <div id="video0" class="video-container">
-                    <span id="label0" class="video-container__topic-label"> / </span>
+                <div id="video0" class="video-container" style="background: url('http://localhost:8080/stream?topic=/image_overlay_1');">
+                    <span id="label0" class="video-container__topic-label"> /image_overlay_1 </span>
                 </div>
-                <div id="video1" class="video-container">
-                    <span id="label1" class="video-container__topic-label"> / </span>
+                <div id="video1" class="video-container" style="background: url('http://localhost:8080/stream?topic=/image_overlay_2');">
+                    <span id="label1" class="video-container__topic-label"> /image_overlay_2 </span>
                 </div>
             </div>
             <div>
-                <div id="video2" class="video-container">
-                    <span id="label2" class="video-container__topic-label"> / </span>
+                <div id="video2" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmentation_1');">
+                    <span id="label2" class="video-container__topic-label"> /segmentation_1 </span>
                 </div>
-                <div id="video3" class="video-container">
-                    <span id="label3" class="video-container__topic-label"> / </span>
+                <div id="video3" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmantation_2');">
+                    <span id="label3" class="video-container__topic-label"> /segmantation_2 </span>
                 </div>
             </div>
         </main>
-        <script>
-            var hostname = 'sn2.local'; // window.location.host
-            /*
-            var topics = [
-                '/detections1',
-                '/detections2',
-                '/segmentation1',
-                '/segmentation2'
-            ];
-            */
-            var topics = [
-                '/camera1/color/image_raw',
-                '/camera2/color/image_raw',
-                '/camera1/color/image_raw',
-                '/camera2/color/image_raw',
-            ];
-
-            for (var i=0; i<4; i++) {
-                document.getElementById('video' + i).backgroundImage = `url(http://${hostname}:8080/stream?topic=${topics[i]})`;
-                document.getElementById('label' + i).innerHTML = topics[i];
-            }
-
-        </script>
     </body>
 </html>

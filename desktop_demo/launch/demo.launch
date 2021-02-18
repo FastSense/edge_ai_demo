@@ -1,4 +1,30 @@
 <launch>
-    <node name="segmentation_node" pkg="edge_ai_demo" type="segmentation_node.py" />
-    <node name="detection_node" pkg="edge_ai_demo" type="detection_node.py" />
+    <arg name="serial_no_camera1" default="XXXXXXXXXXXX"/>
+    <arg name="serial_no_camera2" default="XXXXXXXXXXXX"/>
+
+    <arg name="camera1_topic" default="/camera1/color/image_raw"/>
+    <arg name="camera2_topic" default="/camera2/color/image_raw"/>
+
+    <arg name="launch_realsense" default="true"/>
+
+    <group if="$(arg launch_realsense)">
+        <include file="$(find desktop_demo)/launch/rs_multiple_camera.launch">
+            <arg name="serial_no_camera1" value="$(arg serial_no_camera1)"/>
+            <arg name="serial_no_camera2" value="$(arg serial_no_camera2)"/>
+        </include>
+    </group>
+
+    <node name="web_video_server" pkg="web_video_server" type="web_video_server" output="screen" />
+
+    <include file="$(find desktop_demo)/launch/segmentation.launch">
+        <arg name="camera1_topic" default="$(arg camera1_topic)"/>
+        <arg name="camera2_topic" default="$(arg camera2_topic)"/>
+    </include>
+
+    <include file="$(find desktop_demo)/launch/detector.launch">
+        <arg name="camera1_topic" default="$(arg camera1_topic)"/>
+        <arg name="camera2_topic" default="$(arg camera2_topic)"/>
+    </include>
+
+    <node name="segmentation_node" pkg="desktop_demo" type="run_demo_server.sh" />
 </launch>

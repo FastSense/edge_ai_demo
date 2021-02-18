@@ -65,7 +65,8 @@ class ImageSourceProcesser:
         self._in_img_sub = rospy.Subscriber(
             self._camera_img_topic, Image, self._input_image_cb, queue_size=1, buff_size=2**24, tcp_nodelay=True)
 
-        self._reid_thread = Thread(target=self._reid_thread).start()
+        self._m_reid_thread_ = Thread(target=self._reid_thread)
+        self._m_reid_thread_.start()
 
     def _get_params(self):
         self._camera_img_topic = rospy.get_param('/%s/camera_image_topic' % self._node_name,
@@ -82,10 +83,11 @@ class ImageSourceProcesser:
         else:
             img_mutex.acquire()
         self._img_np = self._to_np_arr(img)
+        img_mutex.release()
+
         self._boxes = self._detect(self._img_np)
         self._got_box= True
         self._detection_rate.sleep()
-        img_mutex.release()
 
     def _reid_thread(self):
         while not rospy.is_shutdown():
@@ -95,15 +97,20 @@ class ImageSourceProcesser:
                 img_mutex.acquire()
                 if self._img_np.size == 0:
                     pass
-                boxes = self._reid(self._img_np, self._boxes, 'person')
                 img_output = np.copy(self._img_np)
+                boxes = self._boxes.copy()
                 img_mutex.release()
 
-                img_output = self._draw_boxes(img_output, self._boxes)
+                boxes = self._reid(img_output, boxes, 'person')
+
+                self._draw_boxes(img_output, boxes)
                 self._publish_img(img_output)
             elif self._img_np.size != 0 and self._boxes:
+                img_mutex.acquire()
                 img_output = np.copy(self._img_np)
-                img_output = self._draw_boxes(img_output, self._boxes)
+                boxes = self._boxes.copy()
+                img_mutex.release()
+                img_output = self._draw_boxes(img_output, boxes)
                 self._publish_img(img_output)
             else:
                 pass

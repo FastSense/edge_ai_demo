@@ -7,7 +7,7 @@
     <arg name="detection_inference_framework"  default="EDGETPU"/>
     <arg name="detection_inference_device"     default="TPU:0"/>
 
-    <arg name="inference_rate"                 default="30.0"/>
+    <arg name="inference_rate"                 default="20.0"/>
     <arg name="threshold"                      default="0.7"/>
 
 

@@ -43,7 +43,7 @@ class ImageSourceProcesser:
         self._reid_threshold = reid_threshold
         self._node_name = node_name
         self._img_topic_name = in_img_topic
-        self._image_pub = rospy.Publisher(out_img_topic, Image, queue_size=1)
+        self._image_pub = rospy.Publisher(out_img_topic, Image)
         self._detection_model = detection_model
         self._reid_model = reid_model
         self._reid_threshold = reid_threshold
@@ -56,7 +56,7 @@ class ImageSourceProcesser:
         self._timer = rospy.Timer(30, self._reid_thread)
 
         self._in_img_sub = rospy.Subscriber(
-            self._camera_img_topic, Image, self._input_image_cb, queue_size=3, buff_size=2**24, tcp_nodelay=True)
+            self._camera_img_topic, Image, self._input_image_cb, queue_size=1, buff_size=2**24, tcp_nodelay=True)
 
     def _get_params(self):
         self._camera_img_topic = rospy.get_param('/%s/camera_image_topic' % self._node_name,
@@ -68,16 +68,18 @@ class ImageSourceProcesser:
         if img is None:
             return
         self._img_np = self._to_np_arr(img)
-        self._boxes = self._detect(img_np)
+        self._boxes = self._detect(self._img_np)
 
     def _reid_thread(self):
         if boxes:
             boxes = self._reid(self._img_np, self._boxes, 'person')
             img_output = np.copy(self._img_np)
-            img_np = self._draw_boxes(img_output, self_.boxes)
+            img_np = self._draw_boxes(img_output, self._boxes)
             self._publish_img(img_output)
-        elif img_np.size == 0:
-            self._publish_img(self_img)
+        elif img_np.size != 0:
+            self._publish_img(self._img_np)
+        else:
+            return 
 
 
     def _to_np_arr(self, img_raw):

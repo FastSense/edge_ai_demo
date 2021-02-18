@@ -91,7 +91,6 @@ class ImageSourceProcesser:
 
         if self._has_reid_boxes:
             out_boxes = self._reid_boxes
-            self._has_reid_boxes = False
             self._draw_boxes(self._img_np, out_boxes, [])
         else:
             self._draw_boxes(self._img_np, out_boxes, ['person'])
@@ -147,14 +146,15 @@ class ImageSourceProcesser:
 
 
                 s=time.time()
-                vec = self._reid_model.inference(img_prepared)[0]
+                vec = self._reid_model.inference(img_prepared)
                 e=time.time()
                 rospy.logwarn_throttle(5.0,'reid inference time %f\n from thread %d', e-s, get_ident() )
 
 
                 s=time.time()
                 database_mutex.acquire()
-                key = self._find_closest(vec, self._reid_threshold)
+                key = self._database.find_closest(vec)
+                self._database.optimize()
                 database_mutex.release()
                 e=time.time()
                 rospy.logwarn_throttle(5.0,'reid database time %f\n from thread %d', e-s, get_ident() )
@@ -169,30 +169,9 @@ class ImageSourceProcesser:
             int(w * max(0, box.y_1)): int(w * min(1, box.y_2))
         ]
 
-    def _find_closest(self, vec, threshold=0.7):
-        keys = list(self._database.keys())
-        vec = vec / np.sqrt((vec**2).mean())
-        distances = [
-            np.sqrt(((vec - self._database[key])**2).mean())
-            for key in keys
-        ]
-        if len(distances) == 0:
-            id_min = None
-        else:
-            id_min = np.argmin(distances)
-        if id_min is None or distances[id_min] > threshold:
-            new_key = str(len(self._database))
-            rospy.loginfo('adding %s', new_key)
-            if id_min is not None:
-                rospy.loginfo('min distance: %s', distances[id_min])
-            self._database[new_key] = vec
-            return new_key
-
-        return keys[id_min]
-
     def _draw_boxes(self, img_np, boxes, ignore):
         for box in boxes:
-            if box not in ignore:
+            if box.label not in ignore:
                 box.draw(img_np)
         return img_np
 
@@ -211,7 +190,7 @@ class ObjectDetector:
     def __init__(self):
         self._get_params()
         rospy.init_node(self._name)
-        self._database = {}
+        self._database = nnio.utils.HumanDataBase(new_entity_threshold=0.25, merging_threshold=0.20) 
 
         self._models = self._get_models()
         self._sources = self._get_sources()
@@ -334,7 +313,7 @@ class ObjectDetector:
             '/%s/threshold' % self._name, 0.7)
 
         self._inference_rate = rospy.get_param(
-            '/%s/inference_rate' % self._name, 20)
+            '/%s/inference_rate' % self._name, 50)
 
 
 if __name__ == '__main__':

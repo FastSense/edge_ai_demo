@@ -1,6 +1,35 @@
-ARG PROJECT_NAME
+# >>>> Build librealsense
+FROM ubuntu:18.04 AS realsense_builder
 
-FROM ubuntu:18.04 AS build
+ENV REALSENSE_LIBRARY="v2.41.0"
+
+RUN apt-get update && \
+    apt-get install -y \
+        git \
+        libssl-dev \
+        libusb-1.0-0-dev \
+        pkg-config \
+        libgtk-3-dev \
+        cmake
+
+# https://github.com/IntelRealSense/librealsense/blob/master/doc/installation.md#building-librealsense2-sdk
+# https://github.com/IntelRealSense/librealsense/issues/7099
+RUN mkdir prebuild && \
+    cd prebuild && \
+    git clone https://github.com/IntelRealSense/librealsense.git && \
+    cd librealsense && \
+    git checkout -b tags/${REALSENSE_LIBRARY} && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DFORCE_RSUSB_BACKEND=ON -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false -DBUILD_WITH_OPENMP=OFF -DCMAKE_BUILD_TYPE=Release && \
+    make && \
+    make install DESTDIR=/rsinstall
+# >>>> Build librealsense
+
+
+
+# >>>> Build openvino
+FROM ubuntu:18.04 AS openvino_builder
 
 # hadolint ignore=DL3002
 USER root
@@ -80,12 +109,61 @@ WORKDIR /opt/libusb-1.0.22
 RUN ./bootstrap.sh && \
     ./configure --disable-udev --enable-shared && \
     make -j4
+# <<<< Build openvino
 
-# -----------------
-#FROM ubuntu:18.04 AS ov_base
 
-FROM ${PROJECT_NAME}_rs:latest
 
+# >>>> Setup system
+FROM ros:melodic-ros-base
+
+ENV ROSUSER="user"
+
+RUN adduser --home /home/$ROSUSER --shell /bin/bash --gecos '' --disabled-password $ROSUSER && \
+    usermod -a -G root,sudo,tty,dialout $ROSUSER && \
+    echo "$ROSUSER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$ROSUSER
+
+RUN apt-get update && \
+    apt-get install -y \
+        bash-completion \
+    software-properties-common && \
+    sed -i 's/--no-generate //' /usr/share/bash-completion/completions/apt-get && \
+    sed -i 's/--no-generate //' /usr/share/bash-completion/completions/apt-cache && \
+    apt-add-repository universe && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends\
+        vim \
+        screen \
+        tmux \
+        net-tools \
+        byobu \
+        python-pip \
+        python3-pip \
+        zbar-tools \
+        ranger \
+        neovim && \
+    rm -rf /var/lib/apt/lists/*
+
+USER $ROSUSER
+
+RUN mkdir /home/$ROSUSER/catkin_ws/ && \
+    mkdir /home/$ROSUSER/catkin_ws/src && \
+    echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc && \
+    echo "source /home/${ROSUSER}/catkin_ws/devel/setup.bash" >> ~/.bashrc
+
+USER root
+# <<<< Setup system
+
+
+
+# >>>> Copy librealsense
+COPY --from=realsense_builder /rsinstall/usr/ /usr/
+# <<<< Copy librealsense
+
+
+
+# >>>> Install openvino and python 3.7
 USER root
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
@@ -94,14 +172,12 @@ RUN mkdir /opt/intel
 
 ENV INTEL_OPENVINO_DIR /opt/intel/openvino
 
-COPY --from=build /opt/intel /opt/intel
+COPY --from=openvino_builder /opt/intel /opt/intel
 
 WORKDIR /thirdparty
 
-
 ARG DEPS=dpkg-dev
 ARG LGPL_DEPS=libgtk-3-0
-
 
 ARG INSTALL_SOURCES="no"
 
@@ -132,9 +208,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && rm -rf *.txt
 
 
+# >>>> Install python 3.7
 # setup Python
 ENV PYTHON_VER python3.7
-
 
 # hadolint ignore=DL3008
 RUN apt-get update && \
@@ -146,6 +222,7 @@ RUN apt-get update && \
         python3-setuptools \
         lib${PYTHON_VER} && \
     rm -rf /var/lib/apt/lists/*
+# <<<< Install python 3.7
 
 
 RUN ${PYTHON_VER} -m pip install --upgrade pip
@@ -158,7 +235,7 @@ RUN ${PYTHON_VER} -m pip install --no-cache-dir -r ${INTEL_OPENVINO_DIR}/python/
 # for GPU
 ARG TEMP_DIR=/tmp/opencl
 
-COPY --from=build ${TEMP_DIR} ${TEMP_DIR}
+COPY --from=openvino_builder ${TEMP_DIR} ${TEMP_DIR}
 
 WORKDIR ${TEMP_DIR}
 #hadolint ignore=DL3008
@@ -194,7 +271,7 @@ RUN apt-get update && \
       echo "Download source for `ls | wc -l` third-party packages: `du -sh`"; fi && \
     rm -rf /var/lib/apt/lists/* && rm -rf *.txt
 
-COPY --from=build /opt/libusb-1.0.22 /opt/libusb-1.0.22
+COPY --from=openvino_builder /opt/libusb-1.0.22 /opt/libusb-1.0.22
 
 WORKDIR /opt/libusb-1.0.22/libusb
 RUN /bin/mkdir -p '/usr/local/lib' && \
@@ -229,11 +306,56 @@ RUN if [ -f "${INTEL_OPENVINO_DIR}"/bin/setupvars.sh ]; then \
         printf "\nexport LIBVA_DRIVER_NAME=iHD \nexport LIBVA_DRIVERS_PATH=\${INTEL_OPENVINO_DIR}/opt/intel/mediasdk/lib64/ \nexport GST_VAAPI_ALL_DRIVERS=1 \nexport LIBRARY_PATH=\${INTEL_OPENVINO_DIR}/opt/intel/mediasdk/lib64/:\$LIBRARY_PATH \nexport LD_LIBRARY_PATH=\${INTEL_OPENVINO_DIR}/opt/intel/mediasdk/lib64/:\$LD_LIBRARY_PATH \n" >> /home/$ROSUSER/.bashrc; \
         printf "\nexport LIBVA_DRIVER_NAME=iHD \nexport LIBVA_DRIVERS_PATH=\${INTEL_OPENVINO_DIR}/opt/intel/mediasdk/lib64/ \nexport GST_VAAPI_ALL_DRIVERS=1 \nexport LIBRARY_PATH=\${INTEL_OPENVINO_DIR}/opt/intel/mediasdk/lib64/:\$LIBRARY_PATH \nexport LD_LIBRARY_PATH=\${INTEL_OPENVINO_DIR}/opt/intel/mediasdk/lib64/:\$LD_LIBRARY_PATH \n" >> /root/.bashrc; \
     fi;
+# <<<< Install openvino and python 3.7
+
+
+
+# >>>> Install some basic utilities
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gnupg \
+        kmod \
+        pciutils \
+        unzip \
+        wget \
+        # OpenCV dependencies
+        ffmpeg \
+        libsm6 \
+        libxext6 && \
+    rm -rf /var/lib/apt/lists/*
+# <<<< Install some basic utilities
+
+
+# >>>> Install python libraries
+RUN wget https://bootstrap.pypa.io/get-pip.py && \
+    python3 get-pip.py && \
+    pip3 install \
+        opencv-python \
+        nnio
+# <<<< Install python libraries
+
+
+# >>>> Install google coral driver
+WORKDIR /home/$ROSUSER/tmp
+
+RUN echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | tee /etc/apt/sources.list.d/coral-edgetpu.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends\
+        gasket-dkms \
+        libedgetpu1-std && \
+    rm -rf /var/lib/apt/lists/* && \
+    wget https://github.com/google-coral/edgetpu/files/5052663/edgetpu-2.14.1-py3-none-any.zip && \
+    unzip edgetpu-2.14.1-py3-none-any.zip && \
+    pip3 install edgetpu-2.14.1-py3-none-any.whl && \
+    pip3 install --extra-index-url https://google-coral.github.io/py-repo/ tflite_runtime
 
 WORKDIR /home/$ROSUSER
+RUN rm -rf /home/$ROSUSER/tmp
+# <<<< Install google coral driver
 
-user $ROSUSER
+USER $ROSUSER
 
-CMD ["/bin/bash"]
-
-# Setup custom layers below
+RUN sudo groupadd apex && \
+    sudo adduser $ROSUSER apex
+# <<<< Create user

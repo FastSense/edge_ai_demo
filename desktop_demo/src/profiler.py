@@ -1,15 +1,16 @@
-import functools
+from functools import wraps
 import time
-import rospy
+from rospy import loginfo_throttle
 
-def profile(f):
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        value = f(*args, **kwargs)
-        end_time = time.perf_counter()
-        run_time = end_time - start_time
-        rospy.loginfo_throttle(10, 'Finished %s in %f', f.__name__ , run_time)
-        return value
-    return wrapper
-
+def profile(tag):
+    def inner_f(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            start_time = time.perf_counter()
+            value = f(*args, **kwargs)
+            end_time = time.perf_counter()
+            run_time = end_time - start_time
+            loginfo_throttle(10, 'Finished %s from %s in %f', tag, f.__name__ , run_time)
+            return value
+        return wrapper
+    return inner_f

@@ -21,13 +21,6 @@
 
     <arg name="reid_device_nums" default="['0', '0']"/>
 
-    <arg name="reid_model_paths" 
-    default="['http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml', 
-              'http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.xml']"/>
-
-    <arg name="reid_bin_paths" 
-    default="['http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin',
-              'http://192.168.123.4:8345/reid/osnet_x1_0_alldata/osnet_x1_0_alldata.bin']"/>
 
     <node name="object_detector" pkg="desktop_demo" type="detection_node.py" output="screen">
       <!-- List Params -->
@@ -38,9 +31,6 @@
       <rosparam param="reid_inference_devices" subst_value="True">$(arg reid_inference_devices)</rosparam>
 
       <rosparam param="reid_device_nums" subst_value="True">$(arg reid_device_nums)</rosparam>
-
-      <rosparam param="reid_model_paths"  subst_value="True">$(arg reid_model_paths)</rosparam>
-      <rosparam param="reid_bin_paths" subst_value="True">$(arg reid_bin_paths)</rosparam>
 
       <!-- Single Params -->
       <param name="node_name"                      value="$(arg node_name_arg)"/>

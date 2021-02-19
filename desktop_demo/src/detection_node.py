@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from enum import Enum
+from profiler import profile
 
 import rospy
 
@@ -34,13 +35,13 @@ class ModelAdapter():
         self.preprocess = preprocess
         self.model = model
 
+    @profile
     def inference(self, img):
         return self.model(img)
 
 
 class ImageSourceProcesser:
     def __init__(self, node_name, in_img_topic, out_img_topic, detection_model, reid_model, reid_threshold, database, inference_rate):
-
         self._reid_threshold = reid_threshold
         self._node_name = node_name
         self._img_topic_name = in_img_topic
@@ -49,7 +50,7 @@ class ImageSourceProcesser:
         self._reid_model = reid_model
         self._reid_threshold = reid_threshold
 
-        self._reid_boxes =[]
+        self._reid_boxes = []
         self._has_reid_boxes = False
 
         self._database = database
@@ -57,12 +58,11 @@ class ImageSourceProcesser:
         self._camera_img_topic = None
         self._get_params()
 
-        self._img_np = np.array([]) 
+        self._img_np = np.array([])
         self._boxes = []
-         
+
         self._detection_rate = rospy.Rate(inference_rate * 2.0)
         self._reid_rate = rospy.Rate(inference_rate)
-
 
         self._in_img_sub = rospy.Subscriber(
             self._camera_img_topic, Image, self._input_image_cb, queue_size=1, buff_size=2**24, tcp_nodelay=True)
@@ -74,19 +74,13 @@ class ImageSourceProcesser:
         self._camera_img_topic = rospy.get_param('/%s/camera_image_topic' % self._node_name,
                                                  self._img_topic_name)
 
-    """ All processes starts here """
-
     def _input_image_cb(self, img):
         if img is None:
             return
 
         self._img_np = self._to_np_arr(img)
 
-        s=time.time()
         self._boxes = self._detect(self._img_np)
-        e=time.time()
-        rospy.logwarn_throttle(5.0,'detection inference time %f\n from thread %d', e-s, get_ident() )
-        
         out_boxes = self._boxes
 
         if self._has_reid_boxes:
@@ -102,27 +96,22 @@ class ImageSourceProcesser:
     def _reid_thread(self):
         while not rospy.is_shutdown():
             if self._boxes:
-                s=time.time()
                 img_mutex.acquire()
                 img_output = np.copy(self._img_np)
                 boxes = self._boxes.copy()
                 img_mutex.release()
 
-                s=time.time()
                 self._reid_boxes = self._reid(img_output, boxes, 'person')
                 self._has_reid_boxes = True
-                e=time.time()
-
-                rospy.logwarn_throttle(5.0,'reid full time %f\n from thread %d', e-s, get_ident() )
             else:
                 pass
             self._reid_rate.sleep()
-
 
     def _to_np_arr(self, img_raw):
         return np.frombuffer(img_raw.data, dtype='uint8').reshape(
             (img_raw.height, img_raw.width, 3))
 
+    @profile
     def _detect(self, img_np):
         img_preprocessed = self._detection_model.preprocess(img_np)
         detection_mutex.acquire()
@@ -131,34 +120,16 @@ class ImageSourceProcesser:
 
         return boxes
 
+    @profile
     def _reid(self, img_np, boxes, label):
         for box in boxes:
             if box.label == label:
-
-                s=time.time()
                 img_cropped = self._crop(img_np, box)
-                e=time.time()
-                rospy.logwarn_throttle(5.0,'reid crop time %f\n from thread %d', e-s, get_ident() )
-
-                s=time.time()
                 img_prepared = self._reid_model.preprocess(img_cropped)
-                e=time.time()
-                rospy.logwarn_throttle(5.0,'reid preprocess time %f\n from thread %d', e-s, get_ident() )
-
-
-                s=time.time()
                 vec = self._reid_model.inference(img_prepared)[0]
-                e=time.time()
-                rospy.logwarn_throttle(5.0,'reid inference time %f\n from thread %d', e-s, get_ident() )
-
-
-                s=time.time()
                 database_mutex.acquire()
                 key = self._find_closest(vec, self._reid_threshold)
                 database_mutex.release()
-                e=time.time()
-                rospy.logwarn_throttle(5.0,'reid database time %f\n from thread %d', e-s, get_ident() )
-
                 box.label = label + ' ' + key
         return boxes
 
@@ -248,7 +219,6 @@ class ObjectDetector:
         return models
 
     def _create_detection_model(self):
-
         rospy.logwarn('Creating detection model with params: \n%s\t %s\n',
                       self._detection_inference_device, self._detection_inference_framework)
 
@@ -285,7 +255,6 @@ class ObjectDetector:
         rospy.logwarn('Creating reid model with params: \n%s\t %s\n %s\n %s\t',
                       device_name, in_framework, in_model_path, model_bin_path)
 
-
         if in_framework in EDGE_TPU_NAMES:
             model = nnio.zoo.edgetpu.reid.OSNet(device=device_name)
         elif in_framework in OPENVINO_NAMES:
@@ -298,8 +267,6 @@ class ObjectDetector:
         return model
 
     def _get_params(self):
-
-        # Node name
         self._name = rospy.get_param('node_name', 'object_detector')
 
         # Multiple params

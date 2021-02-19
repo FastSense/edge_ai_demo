@@ -30,15 +30,31 @@ img_mutex = Lock()
 
 class ModelAdapter():
     """ Adapter Class """
-
     def __init__(self, model, preprocess):
+
         self.preprocess = preprocess
         self.model = model
 
-    @profile
     def inference(self, img):
         return self.model(img)
 
+
+class ReidAdapter(ModelAdapter):
+    def __init__(self, model, preprocess):
+        super().__init__(model, preprocess)
+
+    @profile('Reid')
+    def inference(self, img):
+        return self.model(img)
+
+
+class DetectionAdapter(ModelAdapter):
+    def __init__(self, model, preprocess):
+        super().__init__(model, preprocess)
+
+    @profile('Detection')
+    def inference(self, img):
+        return self.model(img)
 
 class ImageSourceProcesser:
     def __init__(self, node_name, in_img_topic, out_img_topic, detection_model, reid_model, reid_threshold, database, inference_rate):
@@ -110,7 +126,6 @@ class ImageSourceProcesser:
         return np.frombuffer(img_raw.data, dtype='uint8').reshape(
             (img_raw.height, img_raw.width, 3))
 
-    @profile
     def _detect(self, img_np):
         img_preprocessed = self._detection_model.preprocess(img_np)
         detection_mutex.acquire()
@@ -119,16 +134,16 @@ class ImageSourceProcesser:
 
         return boxes
 
-    @profile
+    @profile('Full reid cycle')
     def _reid(self, img_np, boxes, label):
         for box in boxes:
             if box.label == label:
                 img_cropped = self._crop(img_np, box)
                 img_prepared = self._reid_model.preprocess(img_cropped)
-                vec = self._reid_model.inference(img_prepared)[0]
+
+                vec = self._reid_model.inference(img_prepared)
                 database_mutex.acquire()
                 key = self._database.find_closest(vec)
-                self._database.optimize()
                 database_mutex.release()
                 box.label = label + ' ' + key
         return boxes
@@ -161,7 +176,7 @@ class ObjectDetector:
     def __init__(self):
         self._get_params()
         rospy.init_node(self._name)
-        self._database = nnio.utils.HumanDataBase(new_entity_threshold=0.25, merging_threshold=0.20) 
+        self._database = nnio.utils.HumanDataBase(new_entity_threshold=0.35, merging_threshold=0.20) 
 
         self._models = self._get_models()
         self._sources = self._get_sources()
@@ -178,7 +193,6 @@ class ObjectDetector:
                 ImageSourceProcesser(self._name, self._in_img_topics[i], self._out_img_topics[i],
                                      self._models['DETECTION'], self._models['REID'][i],
                                      self._reid_threshold, self._database, self._inference_rate))
-            rospy.logwarn(self._inference_rate)
 
         return sources
 
@@ -190,15 +204,15 @@ class ObjectDetector:
 
         detection_prepoc = detection_model.get_preprocessing()
 
-        models['DETECTION'] = ModelAdapter(
+        models['DETECTION'] = DetectionAdapter(
             detection_model, detection_prepoc)
-        models['REID'] = [ModelAdapter(
+        models['REID'] = [ReidAdapter(
             reid_models[i], reid_models[i].get_preprocessing()) for i in range(len(reid_models))]
 
         return models
 
     def _create_detection_model(self):
-        rospy.logwarn('Creating detection model with params: \n%s\t %s\n',
+        rospy.loginfo('Creating detection model with params: \n%s\t %s\n',
                       self._detection_inference_device, self._detection_inference_framework)
 
         if self._detection_inference_framework in EDGE_TPU_NAMES:
@@ -209,6 +223,8 @@ class ObjectDetector:
                 device=self._detection_inference_device)
         else:
             model = nnio.zoo.onnx.detection.SSDMobileNetV1()
+
+        rospy.loginfo('Detection model created\n')
 
         return model
 
@@ -231,7 +247,7 @@ class ObjectDetector:
         device_name = (in_device + ':' + str(in_num)
                        ) if str(in_num) else in_device
 
-        rospy.logwarn('Creating reid model with params: \n%s\t %s\n %s\n %s\t',
+        rospy.loginfo('Creating reid model with params: \n%s\t %s\n %s\n %s\t',
                       device_name, in_framework, in_model_path, model_bin_path)
 
         if in_framework in EDGE_TPU_NAMES:
@@ -241,7 +257,7 @@ class ObjectDetector:
         else:
             model = nnio.zoo.onnx.reid.OSNet(device=device_name)
 
-        rospy.logwarn('Model created\n')
+        rospy.loginfo('Reid model created\n')
 
         return model
 

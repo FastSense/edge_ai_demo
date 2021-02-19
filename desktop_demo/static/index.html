@@ -1,0 +1,57 @@
+<html>
+    <head>
+        <title>Edge AI Demo</title>
+    </head>
+    <body>
+        <style>
+            * {
+                font-family: Arial, Helvetica, sans-serif;
+            }
+
+            .video-container {
+                display: inline-block;
+                width: 640px;
+                height: 480px;
+                border: 1px solid #999;
+                border-radius: 6px;
+                margin: 6px;
+                position: relative;
+            }
+
+            .video-container__topic-label {
+                position: absolute;
+                font-size: x-large;
+                font-weight: bold;
+                bottom: 6px;
+                right: 6px;
+                color: white;
+                text-shadow: 2px 2px #333;
+            }
+
+            main {
+                margin: auto;
+                width: min(calc(1280px + 36px), 100%);
+                text-align: center;
+                padding: 10px;
+            }
+        </style>
+        <main>
+            <div>
+                <div id="video0" class="video-container" style="background: url('http://localhost:8080/stream?topic=/image_overlay_2');">
+                    <span id="label0" class="video-container__topic-label"> /detections_1 </span>
+                </div>
+                <div id="video1" class="video-container" style="background: url('http://localhost:8080/stream?topic=/image_overlay_1');">
+                    <span id="label1" class="video-container__topic-label"> /detections_2 </span>
+                </div>
+            </div>
+            <div>
+                <div id="video2" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmentation_2');">
+                    <span id="label2" class="video-container__topic-label"> /segmentation_1 </span>
+                </div>
+                <div id="video3" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmentation_1');">
+                    <span id="label3" class="video-container__topic-label"> /segmentation_2 </span>
+                </div>
+            </div>
+        </main>
+    </body>
+</html>

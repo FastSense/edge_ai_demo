@@ -1,0 +1,15 @@
+<launch>
+    <node name="segmentation_node_1" pkg="desktop_demo" type="segmentation_node.py" >
+      <rosparam param="input_topic_name">/camera1/color/image_raw</rosparam>
+      <rosparam param="output_topic_name">/segmentation_1</rosparam>
+      <rosparam param="inference_device">TPU:1</rosparam>
+      <rosparam param="node_name">segmentation_node_1</rosparam>
+    </node>
+
+    <node name="segmentation_node_2" pkg="desktop_demo" type="segmentation_node.py" output="screen" >
+      <rosparam param="input_topic_name">/camera2/color/image_raw</rosparam>
+      <rosparam param="node_name">segmentation_node_2</rosparam>
+      <rosparam param="output_topic_name">/segmentation_2</rosparam>
+      <rosparam param="inference_device">TPU:2</rosparam>
+    </node>
+</launch>

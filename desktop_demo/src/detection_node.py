@@ -20,7 +20,6 @@ OPENVINO_FRAMEWORK_NAMES = [
 detection_mutex = Lock()
 
 
-
 class Detector:
     """ The class that detects objects from the input image in callback.
 
@@ -46,7 +45,6 @@ class Detector:
         self._reid_boxes = []
 
         self._img_np = np.array([])
-
 
         self._detection_rate = rospy.Rate(inference_rate * 2.0)
         self._reid_rate = rospy.Rate(inference_rate)
@@ -185,7 +183,8 @@ class DetectionNode:
 
     def _check_in_out_equality(self):
         if len(self._in_img_topics) != len(self._out_img_topics):
-            rospy.signal_shutdown('input topic number not equal to output topic number')
+            rospy.signal_shutdown(
+                'input topic number not equal to output topic number')
 
     # Using nnio package for model creation
 
@@ -250,29 +249,29 @@ class DetectionNode:
 
         # Multiple params
         self._in_img_topics = rospy.get_param(
-            '/%s/in_img_topics' % self._name, '')
+            '/%s/in_img_topics' % self._name, '[/camera1/color/image_raw, /camera2/color/image_raw]')
         self._out_img_topics = rospy.get_param(
-            '/%s/out_img_topics' % self._name, '')
+            '/%s/out_img_topics' % self._name, '[detections_1, detections_2]')
 
         # Single params
         self._detection_inference_framework = rospy.get_param(
-            '/%s/detection_inference_framework' % self._name, '').upper()
+            '/%s/detection_inference_framework' % self._name, 'EDGETPU').upper()
 
         self._detection_inference_device = rospy.get_param(
-            '/%s/detection_inference_device' % self._name, '').upper()
+            '/%s/detection_inference_device' % self._name, 'TPU:0').upper()
 
         self._reid_device_nums = rospy.get_param(
-            '/%s/reid_device_nums' % self._name, '')
+            '/%s/reid_device_nums' % self._name, '["0", "0"]')
 
         self._reid_inference_frameworks = rospy.get_param(
-            '/%s/reid_inference_frameworks' % self._name, '')
+            '/%s/reid_inference_frameworks' % self._name, '[OPENVINO, OPENVINO]')
         self._reid_inference_devices = rospy.get_param(
-            '/%s/reid_inference_devices' % self._name, '')
+            '/%s/reid_inference_devices' % self._name, '[MYRIAD, MYRIAD]')
         self._reid_threshold = rospy.get_param(
             '/%s/threshold' % self._name, 0.25)
 
         self._inference_rate = rospy.get_param(
-            '/%s/inference_rate' % self._name, 50)
+            '/%s/inference_rate' % self._name, 40)
 
 
 if __name__ == '__main__':

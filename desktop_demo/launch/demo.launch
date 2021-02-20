@@ -17,11 +17,11 @@
   <include file="$(find desktop_demo)/launch/detector.launch">
     <arg param="in_img_topics" value="[$(camera1_topic), $(camera2_topic)]" />
   </include>
-  
+
   <include file="$(find desktop_demo)/launch/segmentation.launch">
     <arg param="camera1_topic" value="$(arg camera1_topic)"/>
     <arg param="camera2_topic" value="$(arg camera1_topic)"/>
   </include>
-  
+
   <node name="show_demo" pkg="desktop_demo" type="show_demo.sh" output="screen" args="$(find desktop_demo)" />
 </launch>

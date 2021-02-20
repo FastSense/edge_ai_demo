@@ -1,18 +1,39 @@
 #!/usr/bin/env python3
+"""TODO description: segmentation node."""
+
+import sys
+
+import cv2
+
+import nnio
+
+import numpy as np
 
 import rospy
-import argparse
-import numpy as np
-import cv2
-import nnio
-import time
-import sys
 
 from sensor_msgs.msg import Image
 
+
 class SegmentationNode:
+    """Segmentation node.
+
+    TODO desription.
+
+    Attributes:
+        pass
+
+    Methods:
+        pass
+
+    """
 
     def __init__(self, name='segmentation_node'):
+        """Create instance of `SegmentationNode` class.
+
+        Args:
+            name (str): name of the node.
+
+        """
         self._name = name
 
         self.accept_params()
@@ -30,6 +51,7 @@ class SegmentationNode:
                                   self.inference)
 
     def accept_params(self):
+        """Read params from ROS parameter server."""
         self._input_topic_name = rospy.get_param('/%s/input_topic_name' % self._name,
                                                  '/camera/color/image_raw')
         self._output_topic_name = rospy.get_param('/%s/output_topic_name' % self._name,
@@ -48,28 +70,16 @@ class SegmentationNode:
     def _input_image_cb(self, msg):
         self._input_image_raw = msg
 
-    def _postprocess(self, result, last_time=[0]):
+    def _postprocess(self, result):
         im = cv2.cvtColor((20 - result.astype('uint8')) * (255 // 20), cv2.COLOR_GRAY2BGR)
         imc = cv2.applyColorMap(im, cv2.COLORMAP_JET)
 
+        output_image = cv2.resize(self._input_image, (513, 513))
 
+        output_image = cv2.addWeighted(output_image[:, :, ::-1], 0.5, imc, 0.5, 0)
 
-        output_image = cv2.resize(cv2.addWeighted(cv2.resize(
-                                  self._input_image, (513, 513))[:, :, ::-1],
-                                  0.5, imc, 0.5, 0),
-                                  (self._input_image_raw.width,
+        output_image = cv2.resize((self._input_image_raw.width,
                                    self._input_image_raw.height))
-        """
-        output_image = cv2.putText(
-                            output_image,
-                            'FPS: %.3f' % (1.0 / (time.time() - last_time[0])) ,
-                            (0, 13),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5, (255, 255, 255), 1, cv2.LINE_AA,
-                        )
-        """
-        last_time[0] = time.time()
-
         return output_image
 
     def _msg_to_nparray(self, msg):
@@ -86,8 +96,9 @@ class SegmentationNode:
 
         self._image_pub.publish(output)
 
-    def inference(self, event=None):
-         if self._input_image_raw is not None:
+    def inference(self, **kwargs):
+        """Run inference of the segmentation net."""
+        if self._input_image_raw is not None:
             self._input_image = self._msg_to_nparray(self._input_image_raw)
 
             result = self._model(self._model.get_preprocessing()(self._input_image))

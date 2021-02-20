@@ -6,7 +6,7 @@
     <arg name="detection_inference_framework"  default="EDGETPU"/>
     <arg name="detection_inference_device"     default="TPU:0"/>
 
-      <!-- reid inference rate on each source. 2x on detection model coz its only one -->
+    <!-- reid inference rate on each source. 2x on detection model coz its only one -->
     <arg name="inference_rate"                 default="40.0"/>
 
     <!-- reindeficattion param which affect how much persons  

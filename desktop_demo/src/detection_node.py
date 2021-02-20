@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 
-import rospy
-
-import numpy as np
-import nnio
-
+import time
 from threading import Lock, Thread
 
-import time
+import nnio
+import numpy as np
 
+import rospy
 from sensor_msgs.msg import Image
 
 EDGE_TPU_FRAMEWORK_NAMES = [
@@ -22,7 +20,7 @@ OPENVINO_FRAMEWORK_NAMES = [
 detection_mutex = Lock()
 
 
-class ImageSourceProcesser:
+class Detector:
     """ The class that detects objects from the input image in callback.
 
         And in parallel thread tries to reindeficate humans,
@@ -31,8 +29,8 @@ class ImageSourceProcesser:
     """
 
     def __init__(self, node_name, in_img_topic, out_img_topic,
-                       detection_model, reid_model,
-                       reid_threshold, detections_database, inference_rate):
+                 detection_model, reid_model,
+                 reid_threshold, detections_database, inference_rate):
         self._node_name = node_name
 
         self._img_topic_name = in_img_topic
@@ -68,10 +66,8 @@ class ImageSourceProcesser:
             then publishing reindeficated boxes
 
         """
-        if img is None:
-            return
 
-        self._img_np = self._to_np_arr(img)
+        self._img_np = self._msg_to_np_arr(img)
         self._boxes = self._detect(self._img_np)
         out_boxes = self._boxes
 
@@ -124,8 +120,7 @@ class ImageSourceProcesser:
 
         return boxes
 
-
-    def _to_np_arr(self, img_raw):
+    def _msg_to_np_arr(self, img_raw):
         return np.frombuffer(img_raw.data, dtype='uint8').reshape(
             (img_raw.height, img_raw.width, 3))
 
@@ -153,35 +148,36 @@ class ImageSourceProcesser:
         self._image_pub.publish(output)
 
 
-class ObjectDetector:
+class DetectionNode:
     """Class that creates one detection model and several threads for processing input images
 
         Also reindeficate detected persons storing them in common database 
 
     """
+
     def __init__(self):
-        self._get_params()
+        self._receive_params()
         rospy.init_node(self._name)
         self._detections_database = nnio.utils.HumanDataBase(
             new_entity_threshold=self._reid_threshold, merging_threshold=0.20)
 
-        self._models = self._get_models()
-        self._sources = self._get_sources()
+        self._models = self._make_models()
+        self._sources = self._make_sources()
 
-    def _get_sources(self):
+    def _make_sources(self):
         sources = []
         self._check_in_out_equality()
 
         for i in range(len(self._in_img_topics)):
             # pass single detection model on each source
             detection_model = self._models['DETECTION']
-            
-            # pass unique reid model on each source 
+
+            # pass unique reid model on each source
             reid_model = self._models['REID'][i]
             sources.append(
-                ImageSourceProcesser(self._name, self._in_img_topics[i], self._out_img_topics[i],
-                                     detection_model, reid_model,
-                                     self._reid_threshold, self._detections_database, self._inference_rate))
+                Detector(self._name, self._in_img_topics[i], self._out_img_topics[i],
+                         detection_model, reid_model,
+                         self._reid_threshold, self._detections_database, self._inference_rate))
 
         return sources
 
@@ -190,18 +186,18 @@ class ObjectDetector:
             rospy.signal_shutdown(
                 "input topic number not equal to output topic number")
 
-    def _get_models(self):
-        models = {}
-
-        models['DETECTION'] = self._create_detection_model()
-        models['REID'] = self._create_reid_models()
-
-        return models
-
     """ Using nnio package for model creation
 
     """
-    def _create_detection_model(self):
+    def _make_models(self):
+        models = {}
+
+        models['DETECTION'] = self._make_detection_model()
+        models['REID'] = self._make_reid_models()
+
+        return models
+
+    def _make_detection_model(self):
         rospy.logwarn('Creating detection model with params: \n%s\t %s\n',
                       self._detection_inference_device, self._detection_inference_framework)
 
@@ -218,20 +214,19 @@ class ObjectDetector:
 
         return model
 
-
-    def _create_reid_models(self):
+    def _make_reid_models(self):
         models = []
         for (dev, num, framework) in zip(self._reid_inference_devices,
                                          self._reid_device_nums,
                                          self._reid_inference_frameworks):
 
-            models.append(self._create_reid_model(dev, num, framework))
+            models.append(self._make_reid_model(dev, num, framework))
 
             time.sleep(1.0)
 
         return models
 
-    def _create_reid_model(self, in_device, in_num, in_framework):
+    def _make_reid_model(self, in_device, in_num, in_framework):
         device_name = (in_device + ':' + str(in_num)
                        ) if str(in_num) else in_device
 
@@ -249,7 +244,7 @@ class ObjectDetector:
 
         return model
 
-    def _get_params(self):
+    def _receive_params(self):
         self._name = rospy.get_param('node_name', 'object_detector')
 
         # Multiple params
@@ -264,7 +259,6 @@ class ObjectDetector:
 
         self._detection_inference_device = rospy.get_param(
             '/%s/detection_inference_device' % self._name, '').upper()
-
 
         self._reid_device_nums = rospy.get_param(
             '/%s/reid_device_nums' % self._name, '')
@@ -281,6 +275,6 @@ class ObjectDetector:
 
 
 if __name__ == '__main__':
-    detector = ObjectDetector()
+    detector = DetectionNode()
 
     rospy.spin()

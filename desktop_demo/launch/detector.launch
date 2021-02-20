@@ -9,15 +9,15 @@
     <!-- reid inference rate on each source. 2x on detection model coz its only one -->
     <arg name="inference_rate"                 default="40.0"/>
 
-    <!-- reindeficattion param which affect how much persons  
-    must be "similar" to be indeficated as same. 
+    <!-- reindeficattion param which affect how much persons
+    must be "similar" to be indeficated as same.
     Higher this param, more distinctive persons must be to be unqiue -->
     <arg name="threshold"                      default="0.25"/>
 
 
     <!-- List args for each device -->
     <arg name="in_img_topics" default="[/camera1/color/image_raw, /camera2/color/image_raw]"/>
-    <arg name="out_img_topics" default="[image_overlay_1, image_overlay_2]"/>
+    <arg name="out_img_topics" default="[detections_1, detections_2]"/>
 
     <arg name="reid_inference_frameworks" default="[OPENVINO, OPENVINO]"/>
     <arg name="reid_inference_devices" default="['MYRIAD', 'MYRIAD']"/>

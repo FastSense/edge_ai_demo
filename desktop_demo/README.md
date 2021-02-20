@@ -1,6 +1,8 @@
 
 # Table of contents
 
+<!-- vim-markdown-toc GitLab -->
+
 * [Overview](#overview)
 * [Installation](#installation)
   * [Check your edge AI devices](#check-your-edge-ai-devices)
@@ -13,14 +15,15 @@
   * [Run the demo](#run-the-demo)
 * [Interface](#interface)
   * [Detection Node](#detection-node)
+    * [Description](#description)
+    * [Topics](#topics)
     * [Parameters](#parameters)
-    * [Subscribed topics](#subscribed-topics)
-    * [Published topics](#published-topics)
   * [Segmentation Node](#segmentation-node)
     * [Parameters](#parameters-1)
-    * [Subscribed topics](#subscribed-topics-1)
-    * [Published topics](#published-topics-1)
-  
+    * [Subscribed topics](#subscribed-topics)
+    * [Published topics](#published-topics)
+
+<!-- vim-markdown-toc -->
 
 # Overview
 
@@ -109,61 +112,32 @@ And then open [http://localhost:8888/](http://localhost:8888/) on your device. Y
 ### Description
 This node gets input video streams from 
 several sources,  detects objects in them and
-tries to reidentificate already detected humans using common database.   
-For all incoming sources only one detection model provided, which sharing between callback threads.  
-Each source processed by its own reidentification model in parallel. 
+tries to reidentificate already detected humans using common database. 
+For all incoming sources only one detection model provided, which sharing between callback threads.
+Each source processed by its own reidentification model in parallel.
+### Topics
+
+
+| Topic                  | I\O    | Message Type                                                                               | Description                                                                                                                  |
+|------------------------|--------|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `/<in_img_topics[i]>`  | Input  | ([sensor_msgs/Image](https://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/Image.html)) | Topic with input image frame. Name of the topics spicified in `/<name>/in_img_topics`.                                       |
+| `/<out_img_topics[i]>` | Output | ([sensor_msgs/Image](https://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/Image.html)) | -Topic where images are published with found objects marked on it. Name of the topics spicified in `/<name>/out_img_topics`. |
+
 ### Parameters
 
-`/<name>/in_img_topics (list, default: [/camera1/color/image_raw, /camera2/color/image_raw])`
-&nbsp;&nbsp;&nbsp;&nbsp; 
-
->&nbsp;&nbsp;&nbsp;&nbsp; Input image topics
-
-`/<name>/out_img_topics (list, default: [image_overlay_1, image_overlay_2])`
-
->&nbsp;&nbsp;&nbsp;&nbsp; Output image topics
-
-`/<name>/detection_inference_framework (string, default: "EDGETPU")`
-
->&nbsp;&nbsp;&nbsp;&nbsp;Framework for detection inference: *`"ONNX"`*, *`"OPENVINO"`* or *`"EDGE_TPU"`*.
-
-`/<name>/detection_inference_device (string, default: "TPU:0")`
-
->&nbsp;&nbsp;&nbsp;&nbsp;Device name for SSD Mobilenet inference. Device for the inference. For OpenVINO: *`"CPU"`, `"GPU"` or `"MYRIAD"`*. EdgeTPU: *`"TPU:0"`* to use the first EdgeTPU device, *`"TPU:1"`* for the second etc...
-
-`/<name>/reid_inference_frameworks (list, default: [OPENVINO, OPENVINO])`
-
->&nbsp;&nbsp;&nbsp;&nbsp;Frameworks for inference: *`"ONNX"`*, *`"OPENVINO"`* or *`"EDGE_TPU"`*.
-
-`/<name>/reid_inference_devices (list, default: [MYRIAD, MYRIAD]`
-
->&nbsp;&nbsp;&nbsp;&nbsp; Device name for ReID inference. Device for the inference. For OpenVINO: *`"CPU"`, `"GPU"` or `"MYRIAD"`*. EdgeTPU: *`"TPU:0"`* to use the first EdgeTPU device, *`"TPU:1"`* for the second etc...
-
-`/<name>/reid_device_nums (list, default: [0, 0])`
-
->&nbsp;&nbsp;&nbsp;&nbsp; Will be concated with `reid_inference_devices`. For example if the first device MYRIAD and the first num 0, result device name will be  "MYRIAD:0"
-> Note that after using first device, second one become first, thats why [0, 0] will use first and second devices 
+| Parameter name                | Type   | Default                                                    | Description                                                                                                                                                                                                                                                                      |
+|-------------------------------|--------|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| in_img_topics                 | list   | [/camera1/color/image_raw, <br/> /camera2/color/image_raw] | Input image topics                                                                                                                                                                                                                                                               |
+| out_img_topics                | list   | [image_overlay_1, <br/> image_overlay_2]                   | Output image topics                                                                                                                                                                                                                                                              |
+| detection_inference_framework | string | EDGETPU                                                    | Framework for detection inference: *`"ONNX"`*, *`"OPENVINO"`* or *`"EDGE_TPU"`*.                                                                                                                                                                                                 |
+| detection_inference_device    | string | TPU:0                                                      | Device name for SSD Mobilenet inference. Device for the inference. For OpenVINO: *`"CPU"`, `"GPU"` or `"MYRIAD"`*. <br/>EdgeTPU: *`"TPU:0"`* to use the first EdgeTPU device, *`"TPU:1"`* for the second etc...                                                                  |
+| reid_inference_frameworks     | list   | [OPENVINO, OPENVINO]                                       | Frameworks for inference: *`"ONNX"`*, *`"OPENVINO"`* or *`"EDGE_TPU"`*.                                                                                                                                                                                                          |
+| reid_inference_devices        | list   | [MYRIAD, MYRIAD]                                           | Device name for ReID inference. Device for the inference. For OpenVINO: *`"CPU"`, `"GPU"` or `"MYRIAD"`*. EdgeTPU: *`"TPU:0"`* to use the first EdgeTPU device, *`"TPU:1"`* for the second etc...                                                                                |
+| reid_device_nums              | list   | [0, 0]                                                     | Value will be concated with `reid_inference_devices`. For example if the first device MYRIAD and the first num 0, result device name will be  "MYRIAD:0". <br /> Note that after using first device, second one become first, thats why [0, 0] will use first and second devices |
+| threshold                     | float  | 0.25                                                       | Theshold for person reidentification. Higher value entails behavior in which, more likely two different persons will be considered as unique.                                                                                                                                    |
+| inference_rate                | float  | 40.0                                                       | Rate for reidentification inference on each reid model, doubles up for detection node coz its only one                                                                                                                                                                           |
 
 
-`/<name>/threshold (float, default: 0.25)`
-
->&nbsp;&nbsp;&nbsp;&nbsp;Theshold for person reidentification. Higher value entails behavior in which, more likely two different persons will be considered as unique.
-
-`/<name>/inference_rate (float, default: 40.0)`
-
->&nbsp;&nbsp;&nbsp;&nbsp; Rate for reidentification inference on each reid model, doubles up for detection node coz its only one
-
-### Subscribed topics
-
-`/<in_img_topics[i]>` ([sensor_msgs/Image](https://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/Image.html))
-
->&nbsp;&nbsp;&nbsp;&nbsp;Topic with input image frame. Name of the topics spicified in `/<name>/in_img_topics`.
-
-### Published topics
-
-`/<out_img_topics[i]>` ([sensor_msgs/Image](https://docs.ros.org/en/melodic/api/sensor_msgs/html/msg/Image.html))
-
->&nbsp;&nbsp;&nbsp;&nbsp;Topic where images are published with found objects marked on it. Name of the topics spicified in `/<name>/out_img_topics`.
 
 ## Segmentation Node
 

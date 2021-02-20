@@ -20,6 +20,8 @@
 
             .video-container__topic-label {
                 position: absolute;
+                font-size: x-large;
+                font-weight: bold;
                 bottom: 6px;
                 right: 6px;
                 color: white;
@@ -34,21 +36,20 @@
             }
         </style>
         <main>
-            <h1>Edge AI Demo</h1>
             <div>
                 <div id="video0" class="video-container" style="background: url('http://localhost:8080/stream?topic=/image_overlay_1');">
-                    <span id="label0" class="video-container__topic-label"> /image_overlay_1 </span>
+                    <span id="label0" class="video-container__topic-label"> /detections_1 </span>
                 </div>
                 <div id="video1" class="video-container" style="background: url('http://localhost:8080/stream?topic=/image_overlay_2');">
-                    <span id="label1" class="video-container__topic-label"> /image_overlay_2 </span>
+                    <span id="label1" class="video-container__topic-label"> /detections_2 </span>
                 </div>
             </div>
             <div>
                 <div id="video2" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmentation_1');">
                     <span id="label2" class="video-container__topic-label"> /segmentation_1 </span>
                 </div>
-                <div id="video3" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmantation_2');">
-                    <span id="label3" class="video-container__topic-label"> /segmantation_2 </span>
+                <div id="video3" class="video-container" style="background: url('http://localhost:8080/stream?topic=/segmentation_2');">
+                    <span id="label3" class="video-container__topic-label"> /segmentation_2 </span>
                 </div>
             </div>
         </main>

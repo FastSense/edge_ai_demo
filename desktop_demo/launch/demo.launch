@@ -1,30 +1,27 @@
 <launch>
-    <arg name="serial_no_camera1" default="XXXXXXXXXXXX"/>
-    <arg name="serial_no_camera2" default="XXXXXXXXXXXX"/>
+  <arg name="launch_realsense" default="true"/>
 
-    <arg name="camera1_topic" default="/camera1/color/image_raw"/>
-    <arg name="camera2_topic" default="/camera2/color/image_raw"/>
+  <arg name="serial_no_camera1" default="XXXXXXXXXXXX"/> <!-- Note: Replace with actual serial number -->
+  <arg name="serial_no_camera2" default="XXXXXXXXXXXX"/> <!-- Note: Replace with actual serial number -->
 
-    <arg name="launch_realsense" default="true"/>
+  <arg name="camera1_topic" default="/camera1/color/image_raw"/>
+  <arg name="camera2_topic" default="/camera2/color/image_raw"/>
 
-    <group if="$(arg launch_realsense)">
-        <include file="$(find desktop_demo)/launch/rs_multiple_camera.launch">
-            <arg name="serial_no_camera1" value="$(arg serial_no_camera1)"/>
-            <arg name="serial_no_camera2" value="$(arg serial_no_camera2)"/>
-        </include>
-    </group>
+  <include if="$(arg launch_realsense)" file="$(find desktop_demo)/launch/rs_multiple_camera.launch">
+    <arg name="serial_no_camera1" value="$(arg serial_no_camera1)"/>
+    <arg name="serial_no_camera2" value="$(arg serial_no_camera2)"/>
+  </include>
 
-    <node name="web_video_server" pkg="web_video_server" type="web_video_server" output="screen" />
+  <node name="web_video_server" pkg="web_video_server" type="web_video_server" output="screen" />
 
-    <include file="$(find desktop_demo)/launch/segmentation.launch">
-        <arg name="camera1_topic" default="$(arg camera1_topic)"/>
-        <arg name="camera2_topic" default="$(arg camera2_topic)"/>
-    </include>
-
-    <include file="$(find desktop_demo)/launch/detector.launch">
-        <arg name="camera1_topic" default="$(arg camera1_topic)"/>
-        <arg name="camera2_topic" default="$(arg camera2_topic)"/>
-    </include>
-
-    <node name="segmentation_node" pkg="desktop_demo" type="run_demo_server.sh" />
+  <include file="$(find desktop_demo)/launch/detector.launch">
+    <arg param="in_img_topics" value="[$(camera1_topic), $(camera2_topic)]" />
+  </include>
+  
+  <include file="$(find desktop_demo)/launch/segmentation.launch">
+    <arg param="camera1_topic" value="$(arg camera1_topic)"/>
+    <arg param="camera2_topic" value="$(arg camera1_topic)"/>
+  </include>
+  
+  <node name="show_demo" pkg="desktop_demo" type="show_demo.sh" output="screen" args="$(find desktop_demo)" />
 </launch>

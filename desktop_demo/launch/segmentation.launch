@@ -1,0 +1,22 @@
+<launch>
+    <arg name="camera1_topic" default="/camera1/color/image_raw"/>
+    <arg name="camera2_topic" default="/camera2/color/image_raw"/>
+    
+    <arg name="inference_device_1" default="TPU:1"/>
+    <arg name="inference_device_2" default="TPU:2"/>
+    
+    <arg name="output_topic_name_1" default="/segmentation_1"/>
+    <arg name="output_topic_name_2" default="/segmentation_2"/>
+
+    <node name="segmentation_node_1" pkg="desktop_demo" type="segmentation_node.py" output="screen">
+      <rosparam param="input_topic_name">$(arg camera1_topic)</rosparam>
+      <rosparam param="output_topic_name">$(arg output_topic_name_1)</rosparam>
+      <rosparam param="inference_device">$(arg inference_device_1)</rosparam>
+    </node>
+
+    <node name="segmentation_node_2" pkg="desktop_demo" type="segmentation_node.py" output="screen">
+      <rosparam param="input_topic_name">$(arg camera2_topic)</rosparam>
+      <rosparam param="output_topic_name">$(arg output_topic_name_2)</rosparam>
+      <rosparam param="inference_device">$(arg inference_device_2)</rosparam>
+    </node>
+</launch>

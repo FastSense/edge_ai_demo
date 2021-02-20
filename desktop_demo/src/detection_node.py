@@ -173,7 +173,10 @@ class ObjectDetector:
         self._check_in_out_equality()
 
         for i in range(len(self._in_img_topics)):
+            # pass single detection model on each source
             detection_model = self._models['DETECTION']
+            
+            # pass unique reid model on each source 
             reid_model = self._models['REID'][i]
             sources.append(
                 ImageSourceProcesser(self._name, self._in_img_topics[i], self._out_img_topics[i],
@@ -182,7 +185,7 @@ class ObjectDetector:
 
         return sources
 
-    def check_in_out_equality(self):
+    def _check_in_out_equality(self):
         if (len(self._in_img_topics) != len(self._out_img_topics)):
             rospy.signal_shutdown(
                 "input topic number not equal to output topic number")
@@ -224,7 +227,7 @@ class ObjectDetector:
 
             models.append(self._create_reid_model(dev, num, framework))
 
-            time.sleep(4.0)
+            time.sleep(1.0)
 
         return models
 
@@ -259,15 +262,19 @@ class ObjectDetector:
         self._detection_inference_framework = rospy.get_param(
             '/%s/detection_inference_framework' % self._name, '').upper()
 
-        self._detection_inference_devices = rospy.get_param(
+        self._detection_inference_device = rospy.get_param(
             '/%s/detection_inference_device' % self._name, '').upper()
+
+
+        self._reid_device_nums = rospy.get_param(
+            '/%s/reid_device_nums' % self._name, '')
 
         self._reid_inference_frameworks = rospy.get_param(
             '/%s/reid_inference_frameworks' % self._name, '')
         self._reid_inference_devices = rospy.get_param(
             '/%s/reid_inference_devices' % self._name, '')
         self._reid_threshold = rospy.get_param(
-            '/%s/threshold' % self._name, 0.7)
+            '/%s/threshold' % self._name, 0.25)
 
         self._inference_rate = rospy.get_param(
             '/%s/inference_rate' % self._name, 50)

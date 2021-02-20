@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 
-from enum import Enum
-
 import rospy
 
 import numpy as np
 import nnio
 
-from threading import Lock, Thread, get_ident
+from threading import Lock, Thread
 
 import time
-import itertools
 
 from sensor_msgs.msg import Image
 
@@ -28,11 +25,14 @@ detection_mutex = Lock()
 class ImageSourceProcesser:
     """ The class that detects objects from the input image in callback.
 
-        And in parallel thread tries to reindeficate humans, who was already detected 
+        And in parallel thread tries to reindeficate humans,
+        who was already detected
 
     """
 
-    def __init__(self, node_name, in_img_topic, out_img_topic, detection_model, reid_model, reid_threshold, detections_database, inference_rate):
+    def __init__(self, node_name, in_img_topic, out_img_topic,
+                       detection_model, reid_model,
+                       reid_threshold, detections_database, inference_rate):
         self._node_name = node_name
 
         self._img_topic_name = in_img_topic
@@ -53,7 +53,9 @@ class ImageSourceProcesser:
 
         self._image_pub = rospy.Publisher(out_img_topic, Image, queue_size=1)
         self._in_img_sub = rospy.Subscriber(
-            in_img_topic, Image, self._input_image_cb, queue_size=1, buff_size=2**24, tcp_nodelay=True)
+            in_img_topic, Image,
+            self._input_image_cb, queue_size=1,
+            buff_size=2**24, tcp_nodelay=True)
 
         self._m_reid_thread_ = Thread(target=self._reid_thread)
         self._m_reid_thread_.start()
@@ -62,7 +64,8 @@ class ImageSourceProcesser:
         """ Input image callback.
 
             Detecting objects, saving bouding boxes to buffer which
-            is processing by reid model in another thread, then publishing reindeficated boxes
+            is processing by reid model in another thread, 
+            then publishing reindeficated boxes
 
         """
         if img is None:
@@ -82,10 +85,11 @@ class ImageSourceProcesser:
         self._detection_rate.sleep()
 
     def _reid_thread(self):
-    """ Lookup for buffer with bouding boxes. Then starts reindefication, saving new persons to database 
+        """ Lookup for buffer with bouding boxes.
+            Then starts reindefication, saving new persons to database
 
-    """
-       while not rospy.is_shutdown():
+        """
+        while not rospy.is_shutdown():
             if self._boxes:
                 img_output = np.copy(self._img_np)
                 boxes = self._boxes.copy()
@@ -106,12 +110,11 @@ class ImageSourceProcesser:
                 box.label = label + ' ' + key
         return boxes
 
-
     def _detect(self, img_np):
-        """Inference of the detection model 
+        """Inference of the detection model
 
         Returns
-            boxes (list): bouding boxes of detected objects 
+            boxes (list): bouding boxes of detected objects
 
         """
         img_preprocessed = self._detection_model.get_preprocessing()(img_np)
@@ -151,7 +154,7 @@ class ImageSourceProcesser:
 
 
 class ObjectDetector:
-    """Class that creates one detection model and several threads for processing input images 
+    """Class that creates one detection model and several threads for processing input images
 
         Also reindeficate detected persons storing them in common database 
 
@@ -192,7 +195,7 @@ class ObjectDetector:
 
         return models
 
-    """ Using nnio package for model creation 
+    """ Using nnio package for model creation
 
     """
     def _create_detection_model(self):
@@ -215,9 +218,9 @@ class ObjectDetector:
 
     def _create_reid_models(self):
         models = []
-        for (dev, num, framework, path, bin_path) in zip(self._reid_inference_devices,
-                                                         self._reid_device_nums,
-                                                         self._reid_inference_frameworks):
+        for (dev, num, framework) in zip(self._reid_inference_devices,
+                                         self._reid_device_nums,
+                                         self._reid_inference_frameworks):
 
             models.append(self._create_reid_model(dev, num, framework))
 
@@ -229,8 +232,8 @@ class ObjectDetector:
         device_name = (in_device + ':' + str(in_num)
                        ) if str(in_num) else in_device
 
-        rospy.logwarn('Creating reid model with params: \n%s\t %s\n %s\n %s\t',
-                      device_name, in_framework, in_model_path, model_bin_path)
+        rospy.logwarn('Creating reid model with params: \n%s\t %s\n',
+                      device_name, in_framework)
 
         if in_framework in EDGE_TPU_FRAMEWORK_NAMES:
             model = nnio.zoo.edgetpu.reid.OSNet(device=device_name)

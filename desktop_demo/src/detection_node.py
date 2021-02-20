@@ -20,6 +20,7 @@ OPENVINO_FRAMEWORK_NAMES = [
 detection_mutex = Lock()
 
 
+
 class Detector:
     """ The class that detects objects from the input image in callback.
 
@@ -45,6 +46,7 @@ class Detector:
         self._reid_boxes = []
 
         self._img_np = np.array([])
+
 
         self._detection_rate = rospy.Rate(inference_rate * 2.0)
         self._reid_rate = rospy.Rate(inference_rate)
@@ -206,6 +208,7 @@ class DetectionNode:
             model = nnio.zoo.openvino.detection.SSDMobileNetV2(
                 device=self._detection_inference_device)
         else:
+            print('DETECTION: ONNX!!!!')
             model = nnio.zoo.onnx.detection.SSDMobileNetV1()
 
         rospy.logwarn('Detection model created\n')

@@ -2,22 +2,13 @@ version: "3"
 
 services:
     ros_ai:
-        build:
-            context: .
-            dockerfile: Dockerfile
-            args:
-                - package_url=https://storage.openvinotoolkit.org/repositories/openvino/packages/2021.1/l_openvino_toolkit_dev_ubuntu18_p_2021.1.110.tgz
-                - GMMLIB=19.3.2
-                - IGC_CORE=1.0.2597
-                - IGC_OPENCL=1.0.2597
-                - INTEL_OPENCL=19.41.14441
-                - INTEL_OCLOC=19.41.14441
-                - PROJECT_NAME=${COMPOSE_PROJECT_NAME}
 
-        environment:
-        - ROS_HOSTNAME=192.168.11.1
-        - ROS_MASTER_URI=http://localhost:11311
         image: fastsense/ros_ai:latest
+
+        #environment:
+            #- ROS_HOSTNAME=192.168.11.1
+            #- ROS_MASTER_URI=http://localhost:11311
+
         volumes:
             - ../desktop_demo:/home/user/catkin_ws/src/
             - /dev/:/dev/

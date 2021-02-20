@@ -62,7 +62,7 @@ class Detector:
         """ Input image callback.
 
             Detecting objects, saving bouding boxes to buffer which
-            is processing by reid model in another thread, 
+            is processing by reid model in another thread,
             then publishing reindeficated boxes
 
         """
@@ -151,7 +151,7 @@ class Detector:
 class DetectionNode:
     """Class that creates one detection model and several threads for processing input images
 
-        Also reindeficate detected persons storing them in common database 
+        Also reindeficate detected persons storing them in common database
 
     """
 
@@ -182,13 +182,11 @@ class DetectionNode:
         return sources
 
     def _check_in_out_equality(self):
-        if (len(self._in_img_topics) != len(self._out_img_topics)):
-            rospy.signal_shutdown(
-                "input topic number not equal to output topic number")
+        if len(self._in_img_topics) != len(self._out_img_topics):
+            rospy.signal_shutdown('input topic number not equal to output topic number')
 
-    """ Using nnio package for model creation
+    # Using nnio package for model creation
 
-    """
     def _make_models(self):
         models = {}
 

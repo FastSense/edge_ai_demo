@@ -1,8 +1,8 @@
 <launch>
   <arg name="launch_realsense" default="true"/>
 
-  <arg name="serial_no_camera1" default="XXXXXXXXXXXX"/>
-  <arg name="serial_no_camera2" default="XXXXXXXXXXXX"/>
+  <arg name="serial_no_camera1" default="XXXXXXXXXXXX"/> <!-- Note: Replace with actual serial number -->
+  <arg name="serial_no_camera2" default="XXXXXXXXXXXX"/> <!-- Note: Replace with actual serial number -->
 
   <arg name="camera1_topic" default="/camera1/color/image_raw"/>
   <arg name="camera2_topic" default="/camera2/color/image_raw"/>

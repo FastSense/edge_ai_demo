@@ -2,7 +2,17 @@
 
 ![](https://habrastorage.org/webt/ig/yi/3f/igyi3fznkfbrz7gunyifdywrcxc.gif)
 
-This demo shows the simultaneous processing of five neural networks running on hardware accelerators for processing input video streams from two cameras. For each video stream, image segmentation is performed using a [DeepLabV3](https://github.com/tensorflow/models/tree/master/research/deeplab), as well as object detection using a [SSD_Mobilenet_v2](https://aihub.cloud.google.com/p/products%2F79cd5d9c-e8f3-4883-bf59-31566fa99e49), and for each detected person, its identifier is determined using [ReID OsNet](https://github.com/KaiyangZhou/deep-person-reid).
+This demo shows the simultaneous processing of five neural networks running on hardware accelerators for processing 
+input video streams from two cameras. We are using **ROS** framework as a middlware for image transport and other message exchange, 
+so you can easily get access to the models inference results from within ROS ecosystem,
+and [**nnio**](https://github.com/FastSense/nnio) 
+python package for model creation.  
+For each video stream, image segmentation is performed using a 
+[DeepLabV3](https://github.com/tensorflow/models/tree/master/research/deeplab), 
+as well as object detection using a 
+[SSD_Mobilenet_v2](https://aihub.cloud.google.com/p/products%2F79cd5d9c-e8f3-4883-bf59-31566fa99e49), 
+and for each detected person, its identifier is determined using 
+[ReID OsNet](https://github.com/KaiyangZhou/deep-person-reid).
 
 ![](https://habrastorage.org/webt/9_/yc/c5/9_ycc56st8dtywl52rg_xkcgbrk.png)
 
@@ -14,7 +24,6 @@ This demo shows the simultaneous processing of five neural networks running on h
 
 <!-- vim-markdown-toc GitLab -->
 
-* [Overview](#overview)
 * [Installation](#installation)
   * [Check your edge AI devices](#check-your-edge-ai-devices)
   * [Clone and install all dependencies](#clone-and-install-all-dependencies)

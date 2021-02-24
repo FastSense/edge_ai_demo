@@ -5,12 +5,12 @@ services:
 
         image: fastsense/ros_ai:latest
 
-        #environment:
-            #- ROS_HOSTNAME=192.168.11.1
-            #- ROS_MASTER_URI=http://localhost:11311
+        environment:
+            - ROS_HOSTNAME=localhost
+            - ROS_MASTER_URI=http://localhost:11311
 
         volumes:
-            - ../desktop_demo:/home/user/catkin_ws/src/
+            - ../:/home/user/catkin_ws/src/
             - /dev/:/dev/
         privileged: true
         network_mode: "host"

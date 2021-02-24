@@ -21,10 +21,9 @@ detection_mutex = Lock()
 
 
 class Detector:
-    """ The class that detects objects from the input image in callback.
+    """ Class detecting objects and humans from the input image source
 
-        And in parallel thread tries to reindeficate humans,
-        who was already detected
+        For detected humans tries to reindeficate them relying on existing detected human database
 
     """
 
@@ -149,10 +148,10 @@ class Detector:
 
 
 class DetectionNode:
-    """Class that creates one detection model and several threads for processing input images
+    """ Node creates one detection model and several reindefication models, plugs them into 
 
-        Also reindeficate detected persons storing them in common database
-
+        Detector classes, which process their own input image sources simultaneously.
+        Detected persons stored in common database.
     """
 
     def __init__(self):
@@ -162,10 +161,10 @@ class DetectionNode:
             new_entity_threshold=self._reid_threshold, merging_threshold=0.20)
 
         self._models = self._make_models()
-        self._sources = self._make_sources()
+        self._detectors = self._make_detectors()
 
-    def _make_sources(self):
-        sources = []
+    def _make_detectors(self):
+        detectors = []
         self._check_in_out_equality()
 
         for i in range(len(self._in_img_topics)):
@@ -174,12 +173,12 @@ class DetectionNode:
 
             # pass unique reid model on each source
             reid_model = self._models['REID'][i]
-            sources.append(
+            detectors.append(
                 Detector(self._name, self._in_img_topics[i], self._out_img_topics[i],
                          detection_model, reid_model,
                          self._reid_threshold, self._detections_database, self._inference_rate))
 
-        return sources
+        return detectors
 
     def _check_in_out_equality(self):
         if len(self._in_img_topics) != len(self._out_img_topics):

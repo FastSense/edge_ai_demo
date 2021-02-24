@@ -1,10 +1,10 @@
 # Overview
 
-![](https://habrastorage.org/webt/6k/8r/3r/6k8r3rrzz2fyyxr89lsvmckcqui.gif)
+![](https://habrastorage.org/webt/ig/yi/3f/igyi3fznkfbrz7gunyifdywrcxc.gif)
 
 This demo shows the simultaneous processing of five neural networks running on hardware accelerators for processing input video streams from two cameras. For each video stream, image segmentation is performed using a [DeepLabV3](https://github.com/tensorflow/models/tree/master/research/deeplab), as well as object detection using a [SSD_Mobilenet_v2](https://aihub.cloud.google.com/p/products%2F79cd5d9c-e8f3-4883-bf59-31566fa99e49), and for each detected person, its identifier is determined using [ReID OsNet](https://github.com/KaiyangZhou/deep-person-reid).
 
-![](https://habrastorage.org/webt/6f/2k/rw/6f2krwfkq8yzecqyfdvjdxiaydg.png)
+![](https://habrastorage.org/webt/9_/yc/c5/9_ycc56st8dtywl52rg_xkcgbrk.png)
 
 *Detection node*  runs SSD MobileNet inference for object detection and double OsNet for person reidentification.
 

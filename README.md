@@ -3,10 +3,20 @@
 ![](https://habrastorage.org/webt/ig/yi/3f/igyi3fznkfbrz7gunyifdywrcxc.gif)
 
 This demo shows the simultaneous processing of five neural networks running on hardware accelerators for processing 
-input video streams from two cameras. We are using **ROS** framework as a middlware for image transport and other message exchange, 
-so you can easily get access to the models inference results from within ROS ecosystem,
-and [**nnio**](https://github.com/FastSense/nnio) 
-python package for model creation.  
+input video streams from two cameras.    
+
+Demo was launched on [**Fast Sense X**](https://fastsense.readthedocs.io/en/latest/) ([website](https://www.fastsense.tech/robotics_ai))
+which is a powerfull x86 on-board computer with easy to plug in
+edge ai accelerators. 
+For this demo, five such devices are used:
+  * two **Myriad X** devices;
+  * three **Coral** devices.
+
+Neural networks model creation on this devices are greatly simplified by [**nnio**](https://github.com/FastSense/nnio) python package which we are providing.  
+
+We also are using **ROS** framework as a middleware for image transport and other message exchange, 
+so you can easily get access to the models inference results from within ROS ecosystem.
+
 For each video stream, image segmentation is performed using a 
 [DeepLabV3](https://github.com/tensorflow/models/tree/master/research/deeplab), 
 as well as object detection using a 
@@ -48,10 +58,6 @@ and for each detected person, its identifier is determined using
 # Installation
 
 ## Check your edge AI devices
-
-For this demo, 5 devices are used:
-  * two Myriad X devices;
-  * three Coral devices.
 
 The presence of myriads in the system can be checked using the command:
 ```

@@ -9,10 +9,13 @@ import numpy as np
 import rospy
 from sensor_msgs.msg import Image
 
+
+# Possible input framework names for EDGETPU
 EDGE_TPU_FRAMEWORK_NAMES = [
     'EDGE', 'EDGETPU', 'EDGE_TPU'
 ]
 
+# Possible input framework names for OPENVINO
 OPENVINO_FRAMEWORK_NAMES = [
     'OPEN_VINO', 'OPENVINO', 'MYRIAD'
 ]
@@ -148,9 +151,9 @@ class Detector:
 
 
 class DetectionNode:
-    """ Node creates one detection model and several reindefication models, plugs them into 
+    """ Node creates one detection model and several reindefication models ,plugs them into detector classes
 
-        Detector classes, which process their own input image sources simultaneously.
+        , which process their own input image source simultaneously.
         Detected persons stored in common database.
     """
 

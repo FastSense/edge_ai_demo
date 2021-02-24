@@ -12,7 +12,7 @@ For this demo, five such devices are used:
   * two **Myriad X** devices;
   * three **Coral** devices.
 
-Neural networks model creation on this devices are greatly simplified by [**nnio**](https://github.com/FastSense/nnio) python package which we are providing.  
+Neural networks model creation on these devices are greatly simplified by [**nnio**](https://github.com/FastSense/nnio) python package which we are providing.  
 
 We also are using **ROS** framework as a middleware for image transport and other message exchange, 
 so you can easily get access to the models inference results from within ROS ecosystem.

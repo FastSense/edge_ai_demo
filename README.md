@@ -117,8 +117,8 @@ And then open [http://localhost:8888/](http://localhost:8888/) on your device. Y
 This node gets input video streams from 
 several sources,  detects objects in them and
 tries to reidentificate already detected humans using common database. 
-For all incoming sources only one detection model provided, which sharing between callback threads.
-Each source processed by its own reidentification model in parallel.
+For all incoming sources only one detection model is provided, which is shared between callback threads.
+Each source is processed by its own reidentification model in parallel.
 
 ### Topics
 

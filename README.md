@@ -1,6 +1,6 @@
 # Overview
 
-![](https://habrastorage.org/webt/ig/yi/3f/igyi3fznkfbrz7gunyifdywrcxc.gif)
+![](https://habrastorage.org/webt/yi/-y/ag/yi-yagpovlgkjb7syqw-x7gj9w8.gif)
 
 This demo shows the simultaneous processing of five neural networks running on hardware accelerators for processing 
 input video streams from two cameras.    
@@ -122,6 +122,8 @@ roslaunch desktop_demo demo.launch
 ```
 
 And then open [http://localhost:8888/](http://localhost:8888/) on your device. You will see the result of the networks in four frames, as in the overview.
+
+![](https://habrastorage.org/webt/bf/3b/nd/bf3bndeyfi43umztlfat5ccx8ei.png)
 
 # Interface
 
